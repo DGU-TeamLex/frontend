@@ -3,8 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "중앙 대시보드" },
-  { href: "/institutions", label: "기관 뷰" },
+  { href: "/", label: "지역·기관 탐색" },
+  { href: "/central", label: "중앙 대시보드" },
   { href: "/supply-risk", label: "공급위험 경보" },
   { href: "/inventory", label: "적정재고·발주" },
   { href: "/alerts", label: "알림" },
