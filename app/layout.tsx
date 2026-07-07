@@ -14,16 +14,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <Nav />
-        <main className="mx-auto max-w-7xl px-6 py-6">{children}</main>
-        <footer className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-1 px-6 pb-10 pt-4 text-xs text-slate-400">
+        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+        <footer className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-6 pb-10 pt-5 text-xs text-ink-faint">
           <span>WeP-Stock 데모 · 명세서 v0.1 기반 · 데이터는 시연용 시드값입니다.</span>
           <a
             href={`${(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/api\/v1\/?$/, "")}/docs`}
             target="_blank"
             rel="noreferrer"
-            className="font-medium text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline"
+            className="font-medium text-ink-muted underline-offset-2 hover:text-accent hover:underline"
           >
             API 문서(Swagger) →
           </a>

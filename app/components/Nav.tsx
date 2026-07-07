@@ -14,15 +14,15 @@ const LINKS = [
 export default function Nav() {
   const path = usePathname();
   return (
-    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-900 text-xs font-bold text-white">
+    <header className="sticky top-0 z-10 border-b border-line bg-paper/85 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3.5">
+        <Link href="/" className="flex items-center gap-2.5">
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-xs font-bold text-white">
             WS
           </span>
-          <span className="text-sm font-bold text-slate-900">
+          <span className="font-serif text-[15px] font-bold tracking-tight text-ink">
             WeP-Stock
-            <span className="ml-2 hidden font-normal text-slate-400 sm:inline">
+            <span className="ml-2.5 hidden font-sans text-xs font-normal text-ink-faint sm:inline">
               전국 보건기관 의료물품 통합 재고관리
             </span>
           </span>
@@ -34,10 +34,10 @@ export default function Nav() {
               <Link
                 key={l.href}
                 href={l.href}
-                className={`rounded-md px-3 py-1.5 font-medium transition ${
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
                   active
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
+                    ? "bg-accent text-white"
+                    : "text-ink-muted hover:bg-surface hover:text-ink"
                 }`}
               >
                 {l.label}

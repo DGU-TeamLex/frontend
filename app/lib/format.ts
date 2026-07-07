@@ -8,10 +8,10 @@ export const RISK_LABEL: Record<string, string> = {
 };
 
 export const RISK_CLASS: Record<string, string> = {
-  NORMAL: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  CAUTION: "bg-amber-100 text-amber-700 border-amber-200",
-  WARNING: "bg-orange-100 text-orange-700 border-orange-200",
-  CRITICAL: "bg-red-100 text-red-700 border-red-200",
+  NORMAL: "bg-ok-soft text-ok border-transparent",
+  CAUTION: "bg-caution-soft text-caution border-transparent",
+  WARNING: "bg-warn-soft text-warn border-transparent",
+  CRITICAL: "bg-crit-soft text-crit border-transparent",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -22,10 +22,10 @@ export const STATUS_LABEL: Record<string, string> = {
 };
 
 export const STATUS_CLASS: Record<string, string> = {
-  OK: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  WATCH: "bg-amber-100 text-amber-700 border-amber-200",
-  BELOW_ROP: "bg-orange-100 text-orange-700 border-orange-200",
-  CRITICAL: "bg-red-100 text-red-700 border-red-200",
+  OK: "bg-ok-soft text-ok border-transparent",
+  WATCH: "bg-caution-soft text-caution border-transparent",
+  BELOW_ROP: "bg-warn-soft text-warn border-transparent",
+  CRITICAL: "bg-crit-soft text-crit border-transparent",
 };
 
 export const ALERT_TYPE_LABEL: Record<string, string> = {
@@ -49,8 +49,8 @@ export const num = (n: number | undefined | null) =>
   n == null ? "-" : n.toLocaleString("ko-KR");
 
 export const riskColorBar: Record<string, string> = {
-  NORMAL: "bg-emerald-500",
-  CAUTION: "bg-amber-500",
-  WARNING: "bg-orange-500",
-  CRITICAL: "bg-red-500",
+  NORMAL: "bg-ok",
+  CAUTION: "bg-caution",
+  WARNING: "bg-warn",
+  CRITICAL: "bg-crit",
 };

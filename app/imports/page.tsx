@@ -4,15 +4,15 @@ import { num } from "../lib/format";
 import { Card, Th, Td, State, PageTitle } from "../components/ui";
 
 const IMPORT_STATUS: Record<string, string> = {
-  COMPLETED: "bg-emerald-100 text-emerald-700",
-  LOADING: "bg-blue-100 text-blue-700",
-  VALIDATING: "bg-amber-100 text-amber-700",
-  VALIDATION_FAILED: "bg-red-100 text-red-700",
+  COMPLETED: "bg-ok-soft text-ok",
+  LOADING: "bg-accent-soft text-accent-dark",
+  VALIDATING: "bg-caution-soft text-caution",
+  VALIDATION_FAILED: "bg-crit-soft text-crit",
 };
 const STD_STATUS: Record<string, string> = {
-  AUTO_ACCEPT: "bg-emerald-100 text-emerald-700",
-  NEEDS_REVIEW: "bg-amber-100 text-amber-700",
-  NO_MATCH: "bg-red-100 text-red-700",
+  AUTO_ACCEPT: "bg-ok-soft text-ok",
+  NEEDS_REVIEW: "bg-caution-soft text-caution",
+  NO_MATCH: "bg-crit-soft text-crit",
 };
 
 export default function ImportsPage() {
@@ -32,7 +32,7 @@ export default function ImportsPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-line">
                 <Th>배치 ID</Th>
                 <Th>파일</Th>
                 <Th>기간</Th>
@@ -42,17 +42,17 @@ export default function ImportsPage() {
                 <Th>상태</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-line">
               {imports.data?.items?.map((b: any) => (
                 <tr key={b.importBatchId}>
                   <Td className="font-mono text-xs">{b.importBatchId}</Td>
                   <Td className="font-medium">{b.fileName}</Td>
-                  <Td className="text-xs text-slate-500">{b.periodStart} ~ {b.periodEnd}</Td>
+                  <Td className="text-xs text-ink-muted">{b.periodStart} ~ {b.periodEnd}</Td>
                   <Td className="text-right">{num(b.totalRows)}</Td>
-                  <Td className="text-right text-orange-600">{num(b.errorRows)}</Td>
+                  <Td className="text-right text-warn">{num(b.errorRows)}</Td>
                   <Td className="text-right">{Math.round(b.mappingRate * 100)}%</Td>
                   <Td>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${IMPORT_STATUS[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${IMPORT_STATUS[b.status] ?? "bg-paper text-ink-muted"}`}>
                       {b.status}
                     </span>
                   </Td>
@@ -68,23 +68,23 @@ export default function ImportsPage() {
           <State loading={queue.loading} error={queue.error} />
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-line">
                 <Th>원천 물품명</Th>
                 <Th>추천 표준품목</Th>
                 <Th className="text-right">점수</Th>
                 <Th>상태</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-line">
               {queue.data?.items?.map((q: any) => (
                 <tr key={q.rawItemId}>
                   <Td className="font-medium">{q.rawName}</Td>
-                  <Td className="text-slate-600">
-                    {q.topCandidate ? `${q.topCandidate.standardName} (${q.topCandidate.standardCode})` : <span className="text-slate-400">후보 없음</span>}
+                  <Td className="text-ink-muted">
+                    {q.topCandidate ? `${q.topCandidate.standardName} (${q.topCandidate.standardCode})` : <span className="text-ink-faint">후보 없음</span>}
                   </Td>
                   <Td className="text-right">{q.topCandidate ? Math.round(q.topCandidate.score * 100) + "%" : "-"}</Td>
                   <Td>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STD_STATUS[q.status] ?? "bg-slate-100 text-slate-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STD_STATUS[q.status] ?? "bg-paper text-ink-muted"}`}>
                       {q.status}
                     </span>
                   </Td>
@@ -104,15 +104,15 @@ export default function ImportsPage() {
               return (
                 <div key={ind.indicatorId} className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-slate-700">{ind.indicatorType}</div>
-                    <div className="text-xs text-slate-400">{ind.sourceSystem} · {ind.granularity} · 최신 {last.observedAt}</div>
+                    <div className="text-sm font-medium text-ink">{ind.indicatorType}</div>
+                    <div className="text-xs text-ink-faint">{ind.sourceSystem} · {ind.granularity} · 최신 {last.observedAt}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-sm font-semibold text-slate-900">
-                      {num(last.value)} <span className="text-xs font-normal text-slate-400">{ind.unit}</span>
+                    <div className="font-mono text-sm font-semibold tabular-nums text-ink">
+                      {num(last.value)} <span className="text-xs font-normal text-ink-faint">{ind.unit}</span>
                     </div>
                     {prev && (
-                      <div className={`text-xs ${up ? "text-red-600" : "text-emerald-600"}`}>
+                      <div className={`text-xs tabular-nums ${up ? "text-crit" : "text-ok"}`}>
                         {up ? "▲" : "▼"} {num(Math.abs(last.value - prev.value))}
                       </div>
                     )}

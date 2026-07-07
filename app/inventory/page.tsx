@@ -19,7 +19,7 @@ export default function InventoryPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-line">
                   <Th>기관</Th>
                   <Th>품목 (표준코드)</Th>
                   <Th>구분</Th>
@@ -31,23 +31,23 @@ export default function InventoryPage() {
                   <Th>상태</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-line">
                 {rows.map((r: any, i: number) => (
-                  <tr key={i} className={r.status === "CRITICAL" ? "bg-red-50/40" : ""}>
+                  <tr key={i} className={r.status === "CRITICAL" ? "bg-crit-soft/40" : ""}>
                     <Td>{r.institutionName}</Td>
                     <Td className="font-medium">
                       {r.standardName}
-                      <span className="ml-1 font-mono text-xs text-slate-400">{r.standardCode}</span>
+                      <span className="ml-1 font-mono text-xs text-ink-faint">{r.standardCode}</span>
                     </Td>
-                    <Td className="text-xs text-slate-500">{CRITICALITY_LABEL[r.criticality] ?? r.criticality}</Td>
+                    <Td className="text-xs text-ink-muted">{CRITICALITY_LABEL[r.criticality] ?? r.criticality}</Td>
                     <Td className="text-right font-semibold">{num(r.available)}</Td>
-                    <Td className="text-right text-slate-500">{num(r.SS)}</Td>
-                    <Td className="text-right text-slate-500">{num(r.ROP)}</Td>
+                    <Td className="text-right text-ink-muted">{num(r.SS)}</Td>
+                    <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
                     <Td className="text-right">
                       {r.orderRecommendation > 0 ? (
-                        <span className="font-bold text-slate-900">{num(r.orderRecommendation)}</span>
+                        <span className="font-bold text-ink">{num(r.orderRecommendation)}</span>
                       ) : (
-                        <span className="text-slate-300">0</span>
+                        <span className="text-ink-faint">0</span>
                       )}
                     </Td>
                     <Td><RiskBadge level={r.supplyRiskLevel} /></Td>
@@ -57,7 +57,7 @@ export default function InventoryPage() {
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-ink-faint">
             SS = z·σ·√L, ROP = μ·L + SS. 리드타임은 가정값(배지) 기준이며 민감도 분석 대상입니다.
           </p>
         </Card>
