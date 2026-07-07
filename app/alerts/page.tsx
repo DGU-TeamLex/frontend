@@ -19,7 +19,7 @@ export default function AlertsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-line">
                   <Th>심각도</Th>
                   <Th>유형</Th>
                   <Th>제목</Th>
@@ -28,22 +28,22 @@ export default function AlertsPage() {
                   <Th>상태</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-line">
                 {rows.map((a: any) => (
                   <tr key={a.alertId}>
                     <Td><RiskBadge level={a.severity} /></Td>
-                    <Td className="text-xs text-slate-500">{ALERT_TYPE_LABEL[a.alertType] ?? a.alertType}</Td>
+                    <Td className="text-xs text-ink-muted">{ALERT_TYPE_LABEL[a.alertType] ?? a.alertType}</Td>
                     <Td className="font-medium">
                       {a.title}
-                      <div className="text-xs font-normal text-slate-400">{a.message}</div>
+                      <div className="text-xs font-normal text-ink-faint">{a.message}</div>
                     </Td>
-                    <Td>{a.institutionName ?? <span className="text-slate-400">전국/품목군</span>}</Td>
-                    <Td className="text-xs text-slate-500">{(a.generatedAt ?? "").slice(0, 10)}</Td>
+                    <Td>{a.institutionName ?? <span className="text-ink-faint">전국/품목군</span>}</Td>
+                    <Td className="text-xs text-ink-muted">{(a.generatedAt ?? "").slice(0, 10)}</Td>
                     <Td>
                       {a.resolvedAt ? (
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">처리됨</span>
+                        <span className="rounded-full border border-transparent bg-ok-soft px-2 py-0.5 text-xs text-ok">처리됨</span>
                       ) : (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">미해결</span>
+                        <span className="rounded-full border border-line bg-paper px-2 py-0.5 text-xs text-ink-muted">미해결</span>
                       )}
                     </Td>
                   </tr>
