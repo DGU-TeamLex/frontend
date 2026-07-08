@@ -6,14 +6,14 @@ import Nav from "./components/Nav";
 // 본문/UI: IBM Plex Sans KR (또렷한 기하학적 산세리프, 실제 굵기 5단계 지원)
 // 제목: Gowun Batang (한국어 전용으로 설계된 세리프, Georgia 대체)
 const plexSans = IBM_Plex_Sans_KR({
-  subsets: ["korean", "latin"],
+  subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-sans",
   display: "swap",
 });
 
 const gowunBatang = Gowun_Batang({
-  subsets: ["korean", "latin"],
+  subsets: ["latin"],
   weight: ["400", "700"],
   variable: "--font-serif",
   display: "swap",
