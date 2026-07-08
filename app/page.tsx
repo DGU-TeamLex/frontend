@@ -166,9 +166,9 @@ export default function ExplorerHome() {
           {detail.data && (
             <>
               <div className="mb-5 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">관리 품목</div><div className="font-serif text-lg font-bold tabular-nums text-ink">{detail.data.summary.trackedItems}</div></div>
-                <div className="rounded-lg bg-warn-soft p-3"><div className="text-xs text-ink-muted">재주문점 미달</div><div className="font-serif text-lg font-bold tabular-nums text-warn">{detail.data.summary.belowRop}</div></div>
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">발주 필요</div><div className="font-serif text-lg font-bold tabular-nums text-ink">{detail.data.summary.orderNeeded}</div></div>
+                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">관리 품목</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.trackedItems}</div></div>
+                <div className="rounded-lg bg-warn-soft p-3"><div className="text-xs text-ink-muted">재주문점 미달</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-warn">{detail.data.summary.belowRop}</div></div>
+                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">발주 필요</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.orderNeeded}</div></div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">

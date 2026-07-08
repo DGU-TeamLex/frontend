@@ -52,7 +52,7 @@ export function Stat({
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
       <div className="text-xs font-medium tracking-wide text-ink-muted">{label}</div>
-      <div className={`mt-1.5 font-serif text-[26px] font-bold leading-none tabular-nums ${toneClass}`}>
+      <div className={`mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums ${toneClass}`}>
         {value}
       </div>
       {sub && <div className="mt-1.5 text-xs text-ink-faint">{sub}</div>}
