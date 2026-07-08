@@ -27,7 +27,7 @@ export default function SupplyRiskPage() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-serif text-3xl font-bold tabular-nums text-ink">{r.riskScore}</div>
+                <div className="font-serif text-3xl font-bold lining-nums tabular-nums text-ink">{r.riskScore}</div>
                 <div className="text-xs text-ink-faint">/ 100</div>
               </div>
             </div>
