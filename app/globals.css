@@ -18,8 +18,8 @@
     border-radius: 4px;
   }
 
-  /* Georgia(serif)는 기본이 old-style 숫자라 크게 쓰면 자릿수 높이가 들쭉날쭉해 보인다.
-     제목용 serif 안에 숫자를 넣을 때 항상 정렬된 lining 숫자로 강제한다. */
+  /* 제목용 serif(Gowun Batang) 안에 숫자를 넣을 때 항상 정렬된 lining 숫자로 강제한다
+     (서체를 바꾸더라도 old-style 숫자 들쭉날쭉 문제가 재발하지 않도록 하는 안전장치). */
   .font-serif {
     font-variant-numeric: lining-nums tabular-nums;
   }
