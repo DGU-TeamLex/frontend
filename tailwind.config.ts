@@ -27,24 +27,10 @@ const config: Config = {
         crit: { DEFAULT: "#BC4A3C", soft: "#FBEAE7" },
       },
       fontFamily: {
-        serif: [
-          "Georgia",
-          "Apple SD Gothic Neo",
-          "Malgun Gothic",
-          "Noto Serif KR",
-          "serif",
-        ],
-        sans: [
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "Segoe UI",
-          "Apple SD Gothic Neo",
-          "Malgun Gothic",
-          "Noto Sans KR",
-          "Helvetica",
-          "Arial",
-          "sans-serif",
-        ],
+        // next/font/google 가 layout.tsx 에서 <html> 에 심어주는 CSS 변수를 참조한다.
+        // 제목: Gowun Batang(고운바탕, 한국어 전용 세리프) · 본문/UI: IBM Plex Sans KR
+        serif: ["var(--font-serif)", "Apple SD Gothic Neo", "Malgun Gothic", "serif"],
+        sans: ["var(--font-sans)", "Apple SD Gothic Neo", "Malgun Gothic", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px rgba(28,37,48,0.04), 0 1px 1px rgba(28,37,48,0.03)",

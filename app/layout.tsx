@@ -1,6 +1,23 @@
 import type { Metadata } from "next";
+import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
 import "./globals.css";
 import Nav from "./components/Nav";
+
+// 본문/UI: IBM Plex Sans KR (또렷한 기하학적 산세리프, 실제 굵기 5단계 지원)
+// 제목: Gowun Batang (한국어 전용으로 설계된 세리프, Georgia 대체)
+const plexSans = IBM_Plex_Sans_KR({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const gowunBatang = Gowun_Batang({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "WeP-Stock — 의료물품 통합 재고관리",
@@ -13,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={`${plexSans.variable} ${gowunBatang.variable}`}>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <Nav />
         <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
