@@ -98,6 +98,73 @@ export function State({ loading, error }: { loading: boolean; error: string | nu
   return null;
 }
 
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-line/60 ${className}`} />;
+}
+
+/** 테이블 로딩 스켈레톤 — cols 는 실제 컬럼 수에 맞춰 <Th> 개수와 동일하게. */
+export function SkeletonTable({ cols, rows = 6 }: { cols: number; rows?: number }) {
+  return (
+    <div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex items-center gap-4 border-b border-line px-3 py-3 last:border-0">
+          {Array.from({ length: cols }).map((_, c) => (
+            <Skeleton key={c} className="h-3.5 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonStatGrid({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="rounded-xl border border-line bg-surface p-4 shadow-card">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="mt-2.5 h-6 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonList({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-1.5 p-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-9 w-full" />
+      ))}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  desc,
+  icon,
+}: {
+  title: string;
+  desc?: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2.5 px-4 py-14 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-full bg-paper text-ink-faint">
+        {icon ?? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
+          </svg>
+        )}
+      </div>
+      <p className="text-sm font-semibold text-ink">{title}</p>
+      {desc && <p className="max-w-xs text-xs text-ink-faint">{desc}</p>}
+    </div>
+  );
+}
+
 export function PageTitle({ title, desc }: { title: string; desc?: string }) {
   return (
     <div className="mb-6">

@@ -10,6 +10,9 @@ import {
   State,
   PageTitle,
   Link,
+  SkeletonStatGrid,
+  SkeletonTable,
+  EmptyState,
 } from "../components/ui";
 
 export default function CentralDashboard() {
@@ -21,7 +24,16 @@ export default function CentralDashboard() {
         title="중앙 대시보드"
         desc={`전국 보건기관 의료물품 재고·공급위험 현황 (기준일 ${data?.asOf ?? "—"})`}
       />
-      <State loading={loading} error={error} />
+      {error && <State loading={false} error={error} />}
+      {loading && (
+        <div className="space-y-6">
+          <SkeletonStatGrid />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card title="품목군 공급위험 랭킹 (모듈 C)"><SkeletonTable cols={2} rows={5} /></Card>
+            <Card title="부족 상위 기관"><SkeletonTable cols={2} rows={5} /></Card>
+          </div>
+        </div>
+      )}
       {data && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -60,52 +72,64 @@ export default function CentralDashboard() {
             </Card>
 
             <Card title="부족 상위 기관">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-line">
-                    <Th>기관</Th>
-                    <Th className="text-right">미달 품목 수</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {data.topShortageInstitutions.map((s: any) => (
-                    <tr key={s.institutionId}>
-                      <Td>{s.institutionName}</Td>
-                      <Td className="text-right font-semibold text-warn">{s.shortageItems}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {data.topShortageInstitutions.length === 0 ? (
+                <EmptyState title="부족 기관이 없습니다" desc="현재 재주문점 미달 품목을 보유한 기관이 없습니다." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-line">
+                        <Th>기관</Th>
+                        <Th className="text-right">미달 품목 수</Th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {data.topShortageInstitutions.map((s: any) => (
+                        <tr key={s.institutionId}>
+                          <Td>{s.institutionName}</Td>
+                          <Td className="text-right font-semibold text-warn">{s.shortageItems}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           </div>
 
           <Card title="재배치 제안 (모듈 D)">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-line">
-                  <Th>품목</Th>
-                  <Th>보내는 기관</Th>
-                  <Th>받는 기관</Th>
-                  <Th className="text-right">제안 수량</Th>
-                  <Th>사유</Th>
-                  <Th>상태</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {data.relocations.map((r: any) => (
-                  <tr key={r.id}>
-                    <Td className="font-medium">{r.standardName}</Td>
-                    <Td>{r.fromName}</Td>
-                    <Td>{r.toName}</Td>
-                    <Td className="text-right font-semibold">{num(r.suggestedQty)}</Td>
-                    <Td className="text-ink-muted">{r.reason}</Td>
-                    <Td>
-                      <span className="rounded border border-line bg-paper px-2 py-0.5 text-xs">{r.status}</span>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {data.relocations.length === 0 ? (
+              <EmptyState title="재배치 제안이 없습니다" desc="현재 기관 간 재배치가 권장되는 품목이 없습니다." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-line">
+                      <Th>품목</Th>
+                      <Th>보내는 기관</Th>
+                      <Th>받는 기관</Th>
+                      <Th className="text-right">제안 수량</Th>
+                      <Th>사유</Th>
+                      <Th>상태</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {data.relocations.map((r: any) => (
+                      <tr key={r.id}>
+                        <Td className="font-medium">{r.standardName}</Td>
+                        <Td>{r.fromName}</Td>
+                        <Td>{r.toName}</Td>
+                        <Td className="text-right font-semibold">{num(r.suggestedQty)}</Td>
+                        <Td className="text-ink-muted">{r.reason}</Td>
+                        <Td>
+                          <span className="rounded border border-line bg-paper px-2 py-0.5 text-xs">{r.status}</span>
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         </div>
       )}

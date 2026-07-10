@@ -1,7 +1,7 @@
 "use client";
 import { useApi } from "../lib/api";
 import { num, riskColorBar } from "../lib/format";
-import { Card, RiskBadge, State, PageTitle } from "../components/ui";
+import { Card, RiskBadge, State, PageTitle, Skeleton, EmptyState } from "../components/ui";
 
 export default function SupplyRiskPage() {
   const { data, loading, error } = useApi<any>("/supply-risk");
@@ -12,7 +12,21 @@ export default function SupplyRiskPage() {
         title="공급위험 조기경보 (모듈 C)"
         desc="외부 신호(원자재·뉴스)를 품목군 의존도·시차로 전파한 공급위험 점수/레벨과 근거"
       />
-      <State loading={loading} error={error} />
+      {error && <State loading={false} error={error} />}
+      {loading && (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-line bg-surface p-5 shadow-card">
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-8 w-14" />
+              </div>
+              <Skeleton className="mt-4 h-1.5 w-full" />
+            </div>
+          ))}
+        </div>
+      )}
+      {data && data.items.length === 0 && <EmptyState title="공급위험 데이터가 없습니다" />}
       <div className="space-y-4">
         {data?.items?.map((r: any) => (
           <Card key={r.itemGroupId}>
