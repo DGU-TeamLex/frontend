@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "./lib/api";
 import { num } from "./lib/format";
-import { Card, StatusBadge, Th, Td, State, PageTitle } from "./components/ui";
+import { Card, StatusBadge, Th, Td, State, PageTitle, Skeleton, SkeletonList, SkeletonTable, EmptyState } from "./components/ui";
 
 const BADGE_CLASS: Record<string, string> = {
   CRITICAL: "bg-crit-soft text-crit border-transparent",
@@ -58,7 +58,14 @@ export default function ExplorerHome() {
       {/* 1. 기관 유형 */}
       <div className="mb-5">
         <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">1 · 기관 유형</div>
-        <State loading={cats.loading} error={cats.error} />
+        {cats.error && <State loading={false} error={cats.error} />}
+        {cats.loading && (
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-32" />
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {cats.data?.items?.map((c: any) => {
             const active = category === c.category;
@@ -125,9 +132,23 @@ export default function ExplorerHome() {
         {/* 좌: 기관 목록 */}
         <Card className="!p-0" title={facPath ? `${sido} ${sigungu} · ${category} ${facilities.data ? `${facilities.data.totalElements}곳` : ""}` : "기관 목록"}>
           <div className="p-3">
-            {!facPath && <p className="px-2 py-6 text-center text-sm text-ink-faint">시·군·구를 선택하거나 기관명을 검색하세요.</p>}
-            <State loading={facilities.loading} error={facilities.error} />
-            {facPath && facilities.data?.items?.length === 0 && <p className="px-2 py-6 text-center text-sm text-ink-faint">해당 조건의 기관이 없습니다.</p>}
+            {!facPath && (
+              <EmptyState
+                title="기관을 찾아보세요"
+                desc="시·군·구를 선택하거나 기관명을 검색하세요."
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                    <path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" />
+                    <circle cx="12" cy="9.5" r="2.4" />
+                  </svg>
+                }
+              />
+            )}
+            {facilities.error && <State loading={false} error={facilities.error} />}
+            {facilities.loading && <SkeletonList rows={7} />}
+            {facPath && facilities.data?.items?.length === 0 && (
+              <EmptyState title="해당 조건의 기관이 없습니다" desc="다른 지역이나 검색어로 다시 시도해보세요." />
+            )}
             <ul className="space-y-1">
               {facilities.data?.items?.map((f: any) => {
                 const active = selected === f.id;
@@ -161,8 +182,26 @@ export default function ExplorerHome() {
         {/* 우: 선택 기관 재고 현황 */}
         <Card title={detail.data ? `${detail.data.institution.name} — 재고 현황` : "재고 현황"}
           action={detail.data ? <span className="text-xs text-ink-faint">{detail.data.institution.sido} {detail.data.institution.sigungu} · {detail.data.institution.type}</span> : null}>
-          {!selected && <p className="py-8 text-center text-sm text-ink-faint">왼쪽에서 기관을 선택하세요.</p>}
-          <State loading={detail.loading} error={detail.error} />
+          {!selected && (
+            <EmptyState
+              title="기관을 선택하세요"
+              desc="왼쪽 목록에서 기관을 선택하면 재고 현황이 표시됩니다."
+            />
+          )}
+          {detail.error && <State loading={false} error={detail.error} />}
+          {detail.loading && (
+            <>
+              <div className="mb-5 grid grid-cols-3 gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-lg bg-paper p-3">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="mt-2 h-6 w-10" />
+                  </div>
+                ))}
+              </div>
+              <SkeletonTable cols={6} rows={6} />
+            </>
+          )}
           {detail.data && (
             <>
               <div className="mb-5 grid grid-cols-3 gap-3 text-center">
