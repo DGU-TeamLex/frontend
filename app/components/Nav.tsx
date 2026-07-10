@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "../lib/auth-context";
 
 const LINKS = [
   { href: "/", label: "지역·기관 탐색" },
@@ -10,6 +11,40 @@ const LINKS = [
   { href: "/alerts", label: "알림" },
   { href: "/imports", label: "데이터 인테이크" },
 ];
+
+function AuthStatus() {
+  const { user, loading, logout } = useAuth();
+  if (loading) return null;
+  if (!user) {
+    return (
+      <Link
+        href="/login"
+        className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+      >
+        로그인
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {user.role === "CENTRAL" && (
+        <Link
+          href="/admin"
+          className="rounded-md px-3 py-1.5 font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+        >
+          관리자
+        </Link>
+      )}
+      <span className="hidden text-ink-faint sm:inline">{user.name}</span>
+      <button
+        onClick={logout}
+        className="rounded-md px-3 py-1.5 font-medium text-ink-muted transition-colors hover:bg-surface hover:text-crit"
+      >
+        로그아웃
+      </button>
+    </div>
+  );
+}
 
 export default function Nav() {
   const path = usePathname();
@@ -45,6 +80,9 @@ export default function Nav() {
             );
           })}
         </nav>
+        <div className="ml-auto">
+          <AuthStatus />
+        </div>
       </div>
     </header>
   );
