@@ -1,24 +1,29 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../lib/auth-context";
+import { useAuth, roleHome } from "../lib/auth-context";
 import { Card, PageTitle } from "../components/ui";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { user, loading, login } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // 이미 로그인된 상태로 /login 에 직접 들어오면 각자 홈으로 보낸다.
+  useEffect(() => {
+    if (!loading && user) router.replace(roleHome(user.role));
+  }, [loading, user, router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      router.push("/");
+      const loggedInUser = await login(email, password);
+      router.push(roleHome(loggedInUser.role));
     } catch (err: any) {
       setError(err.message ?? "로그인에 실패했습니다.");
     } finally {

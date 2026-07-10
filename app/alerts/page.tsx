@@ -2,8 +2,9 @@
 import { useApi } from "../lib/api";
 import { ALERT_TYPE_LABEL } from "../lib/format";
 import { Card, RiskBadge, Th, Td, State, PageTitle, SkeletonTable, EmptyState } from "../components/ui";
+import RequireRole from "../components/RequireRole";
 
-export default function AlertsPage() {
+function Alerts() {
   const { data, loading, error } = useApi<any>("/alerts");
   const rows = data?.items ?? [];
 
@@ -63,5 +64,13 @@ export default function AlertsPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function AlertsPage() {
+  return (
+    <RequireRole>
+      <Alerts />
+    </RequireRole>
   );
 }

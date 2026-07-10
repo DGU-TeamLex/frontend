@@ -16,9 +16,14 @@ type AuthState = {
   token: string | null;
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 };
+
+/** 역할별 로그인 후 랜딩 페이지 / 권한 밖 페이지 접근 시 리다이렉트 대상. */
+export function roleHome(role: Role): string {
+  return role === "INSTITUTION" ? "/my" : "/";
+}
 
 const STORAGE_KEY = "wep-stock-auth";
 
@@ -58,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.accessToken);
     setUser(data.user);
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: data.accessToken, user: data.user }));
+    return data.user as AuthUser;
   }
 
   function logout() {

@@ -2,8 +2,9 @@
 import { useApi } from "../lib/api";
 import { num, CRITICALITY_LABEL } from "../lib/format";
 import { Card, StatusBadge, RiskBadge, Th, Td, State, PageTitle, SkeletonTable, EmptyState } from "../components/ui";
+import RequireRole from "../components/RequireRole";
 
-export default function InventoryPage() {
+function InventoryPolicy() {
   const { data, loading, error } = useApi<any>("/inventory-policy");
   const rows = data?.items ?? [];
 
@@ -72,5 +73,13 @@ export default function InventoryPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <RequireRole roles={["CENTRAL"]}>
+      <InventoryPolicy />
+    </RequireRole>
   );
 }

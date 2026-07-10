@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useApi } from "./lib/api";
 import { num } from "./lib/format";
 import { Card, StatusBadge, Th, Td, State, PageTitle, Skeleton, SkeletonList, SkeletonTable, EmptyState } from "./components/ui";
+import RequireRole from "./components/RequireRole";
 
 const BADGE_CLASS: Record<string, string> = {
   CRITICAL: "bg-crit-soft text-crit border-transparent",
@@ -13,7 +14,7 @@ const BADGE_CLASS: Record<string, string> = {
 
 const enc = encodeURIComponent;
 
-export default function ExplorerHome() {
+function Explorer() {
   const [category, setCategory] = useState<string | null>(null);
   const [sido, setSido] = useState<string>("");
   const [sigungu, setSigungu] = useState<string>("");
@@ -240,5 +241,13 @@ export default function ExplorerHome() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ExplorerHome() {
+  return (
+    <RequireRole roles={["CENTRAL"]}>
+      <Explorer />
+    </RequireRole>
   );
 }

@@ -2,8 +2,9 @@
 import { useApi } from "../lib/api";
 import { num, riskColorBar } from "../lib/format";
 import { Card, RiskBadge, State, PageTitle, Skeleton, EmptyState } from "../components/ui";
+import RequireRole from "../components/RequireRole";
 
-export default function SupplyRiskPage() {
+function SupplyRisk() {
   const { data, loading, error } = useApi<any>("/supply-risk");
 
   return (
@@ -82,5 +83,13 @@ export default function SupplyRiskPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function SupplyRiskPage() {
+  return (
+    <RequireRole roles={["CENTRAL"]}>
+      <SupplyRisk />
+    </RequireRole>
   );
 }
