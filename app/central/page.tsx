@@ -13,6 +13,7 @@ import {
   SkeletonStatGrid,
   SkeletonTable,
   EmptyState,
+  MockBanner,
 } from "../components/ui";
 import RequireRole from "../components/RequireRole";
 
@@ -43,11 +44,12 @@ function Central() {
             <Stat label="총 보유재고" value={num(data.summary.totalOnHand)} sub="전 기관 합계" />
             <Stat label="재주문점 미달" value={num(data.summary.belowRopItems)} sub="품목·기관 건" tone="warn" />
             <Stat label="미해결 알림" value={num(data.summary.openAlerts)} tone="danger" />
-            <Stat label="공급위험 심각" value={num(data.summary.criticalRiskGroups)} sub="품목군" tone="danger" />
+            <Stat label="공급위험 심각(MOCK)" value={num(data.summary.criticalRiskGroups)} sub="품목군" tone="danger" />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card title="품목군 공급위험 랭킹 (모듈 C)">
+              <MockBanner reason="원자재 가격·뉴스지수 외부 연동 전 — 고정된 시연용 값입니다." />
               <ul className="space-y-3.5">
                 {data.supplyRiskRanking.map((r: any) => (
                   <li key={r.itemGroupId}>
@@ -99,6 +101,7 @@ function Central() {
           </div>
 
           <Card title="재배치 제안 (모듈 D)">
+            <MockBanner reason="기관 간 재배치 최적화 로직 미구현 — 고정된 시연용 값입니다." />
             {data.relocations.length === 0 ? (
               <EmptyState title="재배치 제안이 없습니다" desc="현재 기관 간 재배치가 권장되는 품목이 없습니다." />
             ) : (

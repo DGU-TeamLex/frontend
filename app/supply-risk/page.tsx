@@ -1,7 +1,7 @@
 "use client";
 import { useApi } from "../lib/api";
 import { num, riskColorBar } from "../lib/format";
-import { Card, RiskBadge, State, PageTitle, Skeleton, EmptyState } from "../components/ui";
+import { Card, RiskBadge, State, PageTitle, Skeleton, EmptyState, MockBanner } from "../components/ui";
 import RequireRole from "../components/RequireRole";
 
 function SupplyRisk() {
@@ -13,6 +13,7 @@ function SupplyRisk() {
         title="공급위험 조기경보 (모듈 C)"
         desc="외부 신호(원자재·뉴스)를 품목군 의존도·시차로 전파한 공급위험 점수/레벨과 근거"
       />
+      <MockBanner reason="원자재 가격·뉴스 지수 실시간 연동 전 — 고정된 시연용 값입니다(모듈 C)." />
       {error && <State loading={false} error={error} />}
       {loading && (
         <div className="space-y-4">

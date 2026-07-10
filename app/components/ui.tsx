@@ -174,4 +174,21 @@ export function PageTitle({ title, desc }: { title: string; desc?: string }) {
   );
 }
 
+/** 아직 실 파이프라인이 없어 고정 목업값을 보여주는 화면/영역 상단에 붙이는 경고 배너. */
+export function MockBanner({ reason, className = "" }: { reason: string; className?: string }) {
+  return (
+    <div
+      className={`mb-4 flex items-start gap-2.5 rounded-lg border border-warn/40 bg-warn-soft px-4 py-3 text-warn ${className}`}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0">
+        <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className="text-sm">
+        <span className="font-bold">MOCK 데이터</span>
+        <span className="ml-1.5 text-warn/90">{reason}</span>
+      </div>
+    </div>
+  );
+}
+
 export { Link };

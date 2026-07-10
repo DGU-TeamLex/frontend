@@ -1,7 +1,7 @@
 "use client";
 import { useApi } from "../lib/api";
 import { num } from "../lib/format";
-import { Card, Th, Td, State, PageTitle, SkeletonTable, SkeletonList, EmptyState } from "../components/ui";
+import { Card, Th, Td, State, PageTitle, SkeletonTable, SkeletonList, EmptyState, MockBanner } from "../components/ui";
 import RequireRole from "../components/RequireRole";
 
 const IMPORT_STATUS: Record<string, string> = {
@@ -28,7 +28,10 @@ function Imports() {
         desc="가명처리 XLSX 업로드 → 스키마·품질 검증 → 멱등 적재 → 표준품목 매핑(모듈 A). PHIS 직접연동 없이 파일 기반."
       />
 
-      <Card title="적재 배치 (import_batch)">
+      <Card
+        title="적재 배치 (import_batch)"
+        action={<span className="rounded-full bg-ok-soft px-2 py-0.5 text-xs font-semibold text-ok">실데이터</span>}
+      >
         {imports.error && <State loading={false} error={imports.error} />}
         {imports.loading && <SkeletonTable cols={7} rows={4} />}
         {imports.data && imports.data.items.length === 0 && (
@@ -72,6 +75,7 @@ function Imports() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="표준화 검수 큐 (모듈 A)">
+          <MockBanner reason="자유텍스트→표준코드 매칭 엔진 미구현 — 고정된 시연용 값입니다." />
           {queue.error && <State loading={false} error={queue.error} />}
           {queue.loading && <SkeletonTable cols={4} rows={5} />}
           {queue.data && queue.data.items.length === 0 && <EmptyState title="검수 대기 항목이 없습니다" />}
@@ -108,6 +112,7 @@ function Imports() {
         </Card>
 
         <Card title="외부지표 최신성 (모듈 C 입력)">
+          <MockBanner reason="원자재 가격·뉴스지수 외부 API 연동 전 — 고정된 시연용 값입니다." />
           {indicators.error && <State loading={false} error={indicators.error} />}
           {indicators.loading && <SkeletonList rows={4} />}
           {indicators.data && indicators.data.items.length === 0 && <EmptyState title="외부지표가 없습니다" />}
