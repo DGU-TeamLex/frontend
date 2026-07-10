@@ -1,15 +1,20 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "../lib/auth-context";
+import { useAuth, roleHome } from "../lib/auth-context";
 
-const LINKS = [
+const CENTRAL_LINKS = [
   { href: "/", label: "지역·기관 탐색" },
   { href: "/central", label: "중앙 대시보드" },
   { href: "/supply-risk", label: "공급위험 경보" },
   { href: "/inventory", label: "적정재고·발주" },
   { href: "/alerts", label: "알림" },
   { href: "/imports", label: "데이터 인테이크" },
+];
+
+const INSTITUTION_LINKS = [
+  { href: "/my", label: "내 기관 재고" },
+  { href: "/alerts", label: "알림" },
 ];
 
 function AuthStatus() {
@@ -48,10 +53,13 @@ function AuthStatus() {
 
 export default function Nav() {
   const path = usePathname();
+  const { user } = useAuth();
+  const links = !user ? [] : user.role === "CENTRAL" ? CENTRAL_LINKS : INSTITUTION_LINKS;
+  const brandHref = user ? roleHome(user.role) : "/";
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-paper/85 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3.5">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href={brandHref} className="flex items-center gap-2.5">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-xs font-bold text-white">
             WS
           </span>
@@ -63,7 +71,7 @@ export default function Nav() {
           </span>
         </Link>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
-          {LINKS.map((l) => {
+          {links.map((l) => {
             const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (
               <Link

@@ -14,8 +14,9 @@ import {
   SkeletonTable,
   EmptyState,
 } from "../components/ui";
+import RequireRole from "../components/RequireRole";
 
-export default function CentralDashboard() {
+function Central() {
   const { data, loading, error } = useApi<any>("/dashboard/central");
 
   return (
@@ -134,5 +135,13 @@ export default function CentralDashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CentralPage() {
+  return (
+    <RequireRole roles={["CENTRAL"]}>
+      <Central />
+    </RequireRole>
   );
 }

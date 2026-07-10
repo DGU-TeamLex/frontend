@@ -2,6 +2,7 @@
 import { useApi } from "../lib/api";
 import { num } from "../lib/format";
 import { Card, Th, Td, State, PageTitle, SkeletonTable, SkeletonList, EmptyState } from "../components/ui";
+import RequireRole from "../components/RequireRole";
 
 const IMPORT_STATUS: Record<string, string> = {
   COMPLETED: "bg-ok-soft text-ok",
@@ -15,7 +16,7 @@ const STD_STATUS: Record<string, string> = {
   NO_MATCH: "bg-crit-soft text-crit",
 };
 
-export default function ImportsPage() {
+function Imports() {
   const imports = useApi<any>("/imports");
   const queue = useApi<any>("/standardization/queue");
   const indicators = useApi<any>("/external-indicators");
@@ -138,5 +139,13 @@ export default function ImportsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ImportsPage() {
+  return (
+    <RequireRole roles={["CENTRAL"]}>
+      <Imports />
+    </RequireRole>
   );
 }
