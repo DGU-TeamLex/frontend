@@ -15,6 +15,28 @@ export async function getJSON<T = any>(path: string): Promise<T> {
   return res.json();
 }
 
+/** 쓰기 요청(POST/PATCH 등). 실패 시 백엔드의 `detail` 메시지를 그대로 노출한다. */
+export async function sendJSON<T = any>(
+  path: string,
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => null);
+    throw new Error(b?.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export function useApi<T = any>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
