@@ -6,6 +6,7 @@ import { useAuth, roleHome } from "../lib/auth-context";
 const CENTRAL_LINKS = [
   { href: "/", label: "지역·기관 탐색" },
   { href: "/central", label: "중앙 대시보드" },
+  { href: "/items", label: "표준품목 검색" },
   { href: "/supply-risk", label: "공급위험 경보" },
   { href: "/inventory", label: "적정재고·발주" },
   { href: "/alerts", label: "알림" },
