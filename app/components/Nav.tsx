@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useAuth, roleHome } from "../lib/auth-context";
 
 const CENTRAL_LINKS = [
+  { href: "/order-recommendations", label: "발주권고(세부품목)" },
   { href: "/", label: "지역·기관 탐색" },
   { href: "/central", label: "중앙 대시보드" },
   { href: "/items", label: "표준품목 검색" },
