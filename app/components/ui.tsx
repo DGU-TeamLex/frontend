@@ -10,11 +10,13 @@ export function Card({
   title,
   children,
   className = "",
+  bodyClassName = "p-5",
   action,
 }: {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
   action?: React.ReactNode;
 }) {
   return (
@@ -22,14 +24,96 @@ export function Card({
       className={`rounded-xl border border-line bg-surface shadow-card ${className}`}
     >
       {title && (
-        <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
           <h2 className="font-serif text-[15px] font-bold text-ink">{title}</h2>
           {action}
         </header>
       )}
-      <div className="p-5">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </section>
   );
+}
+
+/** 페이지 안 소단위 섹션 헤더 (Card 없이 쓰는 구획). */
+export function SectionHeader({
+  title,
+  desc,
+  action,
+  count,
+}: {
+  title: string;
+  desc?: string;
+  action?: React.ReactNode;
+  count?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div>
+        <h2 className="flex items-center gap-2 font-serif text-lg font-bold text-ink">
+          {title}
+          {count != null && (
+            <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-semibold tabular-nums text-ink-muted">
+              {count}
+            </span>
+          )}
+        </h2>
+        {desc && <p className="mt-0.5 text-xs text-ink-faint">{desc}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+const KPI_TONE: Record<string, { v: string; ring: string; dot: string }> = {
+  default: { v: "text-ink", ring: "", dot: "bg-ink-faint" },
+  accent: { v: "text-accent-dark", ring: "", dot: "bg-accent" },
+  danger: { v: "text-crit", ring: "ring-crit/20", dot: "bg-crit" },
+  warn: { v: "text-warn", ring: "ring-warn/20", dot: "bg-warn" },
+  good: { v: "text-ok", ring: "ring-ok/20", dot: "bg-ok" },
+};
+
+/** 대시보드 핵심 지표 카드. href 주면 클릭 가능(드릴다운). */
+export function Kpi({
+  label,
+  value,
+  hint,
+  tone = "default",
+  href,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  tone?: "default" | "accent" | "danger" | "warn" | "good";
+  href?: string;
+}) {
+  const t = KPI_TONE[tone];
+  const inner = (
+    <>
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
+        <span className="text-xs font-medium tracking-wide text-ink-muted">{label}</span>
+      </div>
+      <div className={`mt-2 font-serif text-[28px] font-bold leading-none lining-nums tabular-nums ${t.v}`}>
+        {value}
+      </div>
+      {hint && <div className="mt-1.5 text-xs text-ink-faint">{hint}</div>}
+    </>
+  );
+  const cls = `block rounded-xl border border-line bg-surface p-4 shadow-card ${t.ring ? `ring-1 ${t.ring}` : ""}`;
+  if (href) {
+    return (
+      <Link href={href} className={`${cls} group relative transition-shadow hover:shadow-md`}>
+        {inner}
+        <svg
+          className="absolute right-3 top-3 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+        >
+          <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </Link>
+    );
+  }
+  return <div className={cls}>{inner}</div>;
 }
 
 export function Stat({
@@ -58,6 +142,94 @@ export function Stat({
       {sub && <div className="mt-1.5 text-xs text-ink-faint">{sub}</div>}
     </div>
   );
+}
+
+/** 가로 분포 막대 (심각도·상태 구성 비율). segments 합이 0이면 회색 빈 막대. */
+export function DistBar({
+  segments,
+  className = "",
+}: {
+  segments: { value: number; className: string; label?: string }[];
+  className?: string;
+}) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  return (
+    <div className={className}>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-line/60">
+        {total > 0 &&
+          segments.map((s, i) =>
+            s.value > 0 ? (
+              <div
+                key={i}
+                className={s.className}
+                style={{ width: `${(s.value / total) * 100}%` }}
+                title={s.label ? `${s.label}: ${s.value}` : undefined}
+              />
+            ) : null
+          )}
+      </div>
+    </div>
+  );
+}
+
+/** 컨트롤드 탭 바 (부모가 active 상태 관리). */
+export function Tabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: { key: string; label: string; count?: number }[];
+  active: string;
+  onChange: (key: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1 shadow-card">
+      {tabs.map((t) => {
+        const on = t.key === active;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+              on ? "bg-accent text-white shadow-card" : "text-ink-muted hover:bg-paper hover:text-ink"
+            }`}
+          >
+            {t.label}
+            {t.count != null && (
+              <span className={`rounded-full px-1.5 text-xs tabular-nums ${on ? "bg-white/20" : "bg-paper text-ink-faint"}`}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 필터 툴바 래퍼 + 입력 컴포넌트들. */
+export function Toolbar({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`flex flex-wrap items-end gap-2.5 ${className}`}>{children}</div>;
+}
+
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const CONTROL =
+  "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink shadow-card outline-none focus:border-accent disabled:bg-paper disabled:text-ink-faint";
+
+export function Select({ className = "", ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`${CONTROL} ${className}`} {...p} />;
+}
+
+export function TextInput({ className = "", ...p }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`${CONTROL} placeholder:text-ink-faint ${className}`} {...p} />;
 }
 
 export function RiskBadge({ level }: { level: string }) {
@@ -165,11 +337,14 @@ export function EmptyState({
   );
 }
 
-export function PageTitle({ title, desc }: { title: string; desc?: string }) {
+export function PageTitle({ title, desc, action }: { title: string; desc?: string; action?: React.ReactNode }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-balance font-serif text-2xl font-bold text-ink">{title}</h1>
-      {desc && <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">{desc}</p>}
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-balance font-serif text-2xl font-bold text-ink">{title}</h1>
+        {desc && <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">{desc}</p>}
+      </div>
+      {action}
     </div>
   );
 }

@@ -1,253 +1,231 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import Link from "next/link";
 import { useApi } from "./lib/api";
 import { num } from "./lib/format";
-import { Card, StatusBadge, Th, Td, State, PageTitle, Skeleton, SkeletonList, SkeletonTable, EmptyState } from "./components/ui";
+import {
+  Card, Kpi, SectionHeader, DistBar, RiskBadge, StatusBadge,
+  Th, Td, State, Skeleton, SkeletonStatGrid, SkeletonTable, SkeletonList, EmptyState, MockBanner,
+} from "./components/ui";
 import RequireRole from "./components/RequireRole";
 
-const BADGE_CLASS: Record<string, string> = {
-  CRITICAL: "bg-crit-soft text-crit border-transparent",
-  WARN: "bg-warn-soft text-warn border-transparent",
-  WATCH: "bg-caution-soft text-caution border-transparent",
-  OK: "bg-ok-soft text-ok border-transparent",
-};
+// 알림 심각도 표시 순서·색 (alertsBySeverity 는 동적 키 object)
+const SEV_ORDER = ["HIGH", "MEDIUM", "LOW"];
+const SEV = {
+  HIGH: { label: "높음", dot: "bg-crit", bar: "bg-crit", text: "text-crit" },
+  MEDIUM: { label: "중간", dot: "bg-warn", bar: "bg-warn", text: "text-warn" },
+  LOW: { label: "낮음", dot: "bg-caution", bar: "bg-caution", text: "text-caution" },
+} as Record<string, { label: string; dot: string; bar: string; text: string }>;
 
-const enc = encodeURIComponent;
+// 발주 우선순위 정렬: 상태 심각도 → 권고수량
+const STATUS_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3 };
 
-function Explorer() {
-  const [category, setCategory] = useState<string | null>(null);
-  const [sido, setSido] = useState<string>("");
-  const [sigungu, setSigungu] = useState<string>("");
-  const [q, setQ] = useState<string>("");
-  const [selected, setSelected] = useState<string | null>(null);
+function Dashboard() {
+  const dash = useApi<any>("/dashboard/central");
+  const orders = useApi<any>("/order-recommendations");
 
-  const cats = useApi<any>("/facility-categories");
-  // 카테고리 기본값
-  useEffect(() => {
-    if (!category && cats.data?.items?.length) setCategory(cats.data.items[0].category);
-  }, [cats.data, category]);
+  const s = dash.data?.summary;
+  const sevEntries = useMemo(() => {
+    const bs: Record<string, number> = dash.data?.alertsBySeverity ?? {};
+    const keys = Object.keys(bs);
+    keys.sort((a, b) => (SEV_ORDER.indexOf(a) + 99 * (SEV_ORDER.indexOf(a) < 0 ? 1 : 0)) - (SEV_ORDER.indexOf(b) + 99 * (SEV_ORDER.indexOf(b) < 0 ? 1 : 0)));
+    return keys.map((k) => ({ key: k, count: bs[k] }));
+  }, [dash.data]);
 
-  const sidoApi = useApi<any>(category ? `/facility-regions?category=${enc(category)}` : null);
-  const sigunguApi = useApi<any>(category && sido ? `/facility-regions?category=${enc(category)}&sido=${enc(sido)}` : null);
+  const topOrders = useMemo(() => {
+    const items: any[] = orders.data?.items ?? [];
+    return [...items]
+      .sort((a, b) =>
+        (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) ||
+        (b.recommendedQty ?? 0) - (a.recommendedQty ?? 0)
+      )
+      .slice(0, 12);
+  }, [orders.data]);
 
-  const facPath = useMemo(() => {
-    if (!category || !sido) return null;
-    if (!sigungu && !q) return null;
-    let p = `/facilities?category=${enc(category)}&sido=${enc(sido)}`;
-    if (sigungu) p += `&sigungu=${enc(sigungu)}`;
-    if (q) p += `&q=${enc(q)}`;
-    return p;
-  }, [category, sido, sigungu, q]);
-  const facilities = useApi<any>(facPath);
-
-  // 목록 로드되면 첫 기관 자동 선택
-  useEffect(() => {
-    const items = facilities.data?.items;
-    if (items?.length) setSelected(items[0].id);
-    else setSelected(null);
-  }, [facilities.data]);
-
-  const detail = useApi<any>(selected ? `/facilities/${selected}` : null);
+  const ranking: any[] = dash.data?.supplyRiskRanking ?? [];
+  const shortage: any[] = dash.data?.topShortageInstitutions ?? [];
 
   return (
     <div>
-      <PageTitle
-        title="지역·기관 재고 탐색"
-        desc="기관유형과 지역(시·도→시·군·구)을 선택하면 해당 보건의료기관의 재고 현황을 볼 수 있습니다. (전국 지역보건의료기관 현황, 보건복지부)"
-      />
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-bold text-ink">전국 재고 현황</h1>
+          <p className="mt-1.5 text-sm text-ink-muted">
+            전국 보건의료기관의 재고·발주·공급위험을 한눈에. 아래 <b className="text-ink">지금 발주해야 할 품목</b>부터 확인하세요.
+          </p>
+        </div>
+        {dash.data?.asOf && (
+          <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-faint shadow-card">
+            기준일 {dash.data.asOf}
+          </span>
+        )}
+      </div>
 
-      {/* 1. 기관 유형 */}
-      <div className="mb-5">
-        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">1 · 기관 유형</div>
-        {cats.error && <State loading={false} error={cats.error} />}
-        {cats.loading && (
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-32" />
+      {/* KPI 밴드 */}
+      {dash.loading && <SkeletonStatGrid count={5} />}
+      {dash.error && <Card><State loading={false} error={dash.error} /></Card>}
+      {s && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <Kpi label="관리 기관" value={num(s.institutions)} hint="전국 보건의료기관" href="/inventory" />
+          <Kpi label="재주문점 미달" value={num(s.belowRopItems)} tone="danger" hint="발주 시급 품목" href="/inventory" />
+          <Kpi label="미해결 알림" value={num(s.openAlerts)} tone="warn" hint="확인 필요" href="/alerts" />
+          <Kpi label="위험 품목군" value={num(s.criticalRiskGroups)} tone="warn" hint="공급위험 CRITICAL" href="/supply-risk" />
+          <Kpi label="표준품목" value={num(s.standardItems)} hint={`품목군 ${num(s.itemGroups)}종`} href="/inventory" />
+        </div>
+      )}
+
+      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_340px]">
+        {/* 좌: 지금 발주해야 할 품목 (실데이터, 히어로) */}
+        <Card
+          bodyClassName="p-0"
+          title="지금 발주해야 할 품목"
+          action={
+            <Link href="/inventory" className="text-xs font-semibold text-accent hover:text-accent-dark">
+              전체 재고·발주 →
+            </Link>
+          }
+        >
+          {orders.loading && <div className="p-4"><SkeletonTable cols={5} rows={8} /></div>}
+          {orders.error && <div className="p-5"><State loading={false} error={orders.error} /></div>}
+          {orders.data && topOrders.length === 0 && (
+            <EmptyState title="발주가 필요한 품목이 없습니다" desc="모든 품목이 재주문점 이상입니다." />
+          )}
+          {topOrders.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-line">
+                    <Th>기관 · 품목</Th>
+                    <Th className="text-right">가용</Th>
+                    <Th className="text-right">ROP</Th>
+                    <Th className="text-right">권고수량</Th>
+                    <Th>상태</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {topOrders.map((r, i) => (
+                    <tr key={i} className={`transition-colors hover:bg-paper ${r.status === "CRITICAL" ? "bg-crit-soft/30" : ""}`}>
+                      <Td className="max-w-0">
+                        <span className="block truncate font-medium text-ink">{r.standardName}</span>
+                        <span className="block truncate text-xs text-ink-faint">{r.institutionName}</span>
+                      </Td>
+                      <Td className="text-right font-semibold">{num(r.available)}</Td>
+                      <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
+                      <Td className="text-right">
+                        <span className="font-bold text-accent-dark">{num(r.recommendedQty)}</span>
+                        <span className="ml-0.5 text-xs text-ink-faint">{r.uom}</span>
+                      </Td>
+                      <Td><StatusBadge status={r.status} /></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {orders.data?.totalElements > topOrders.length && (
+            <div className="border-t border-line px-5 py-3 text-xs text-ink-faint">
+              발주권고 총 {num(orders.data.totalElements)}건 중 상위 {topOrders.length}건 · 전체는 재고·발주에서
+            </div>
+          )}
+        </Card>
+
+        {/* 우: 알림 분포 + 부족 상위 기관 + 공급위험 랭킹 */}
+        <div className="space-y-5">
+          <Card title="알림 심각도">
+            {dash.loading && <div className="space-y-2"><Skeleton className="h-2.5 w-full" /><Skeleton className="h-4 w-2/3" /></div>}
+            {s && (
+              <>
+                <DistBar
+                  className="mb-3"
+                  segments={sevEntries.map((e) => ({
+                    value: e.count,
+                    className: SEV[e.key]?.bar ?? "bg-ink-faint",
+                    label: SEV[e.key]?.label ?? e.key,
+                  }))}
+                />
+                {sevEntries.length === 0 ? (
+                  <p className="text-sm text-ink-faint">미해결 알림 없음</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {sevEntries.map((e) => (
+                      <li key={e.key} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${SEV[e.key]?.dot ?? "bg-ink-faint"}`} />
+                          <span className="text-ink-muted">{SEV[e.key]?.label ?? e.key}</span>
+                        </span>
+                        <span className={`font-bold tabular-nums ${SEV[e.key]?.text ?? "text-ink"}`}>{num(e.count)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link href="/alerts" className="mt-3 block text-xs font-semibold text-accent hover:text-accent-dark">
+                  알림 전체 보기 →
+                </Link>
+              </>
+            )}
+          </Card>
+
+          <Card title="재고 부족 상위 기관">
+            {dash.loading && <SkeletonList rows={5} />}
+            {shortage.length === 0 && !dash.loading && <p className="text-sm text-ink-faint">부족 기관 없음</p>}
+            <ul className="space-y-1">
+              {shortage.map((f, i) => (
+                <li key={f.institutionId}>
+                  <Link
+                    href={`/inventory?institution=${encodeURIComponent(f.institutionId)}`}
+                    className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-paper"
+                  >
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-paper text-[11px] font-bold tabular-nums text-ink-faint">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{f.institutionName}</span>
+                    <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold tabular-nums text-warn">
+                      {num(f.shortageItems)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      </div>
+
+      {/* 공급위험 랭킹 (MOCK) */}
+      <div className="mt-6">
+        <SectionHeader
+          title="공급위험 품목군 랭킹"
+          desc="원자재·뉴스 기반 공급위험 점수 상위"
+          action={<Link href="/supply-risk" className="text-xs font-semibold text-accent hover:text-accent-dark">공급위험 상세 →</Link>}
+        />
+        <MockBanner reason="공급위험 점수는 외부지표 실연동 전 데모 목업값입니다." />
+        {dash.loading && <SkeletonStatGrid count={4} />}
+        {ranking.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {ranking.slice(0, 4).map((r) => (
+              <Link
+                key={r.itemGroupId}
+                href={`/supply-risk`}
+                className="rounded-xl border border-line bg-surface p-4 shadow-card transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="line-clamp-2 text-sm font-semibold text-ink">{r.itemGroupName}</span>
+                  <RiskBadge level={r.level} />
+                </div>
+                <div className="mt-3 flex items-end justify-between">
+                  <span className="text-xs text-ink-faint">위험점수</span>
+                  <span className="font-serif text-xl font-bold tabular-nums text-ink">{num(r.riskScore)}</span>
+                </div>
+              </Link>
             ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
-          {cats.data?.items?.map((c: any) => {
-            const active = category === c.category;
-            return (
-              <button
-                key={c.category}
-                onClick={() => { setCategory(c.category); setSido(""); setSigungu(""); setSelected(null); }}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-surface text-ink-muted hover:border-accent/40 hover:text-ink"
-                }`}
-              >
-                {c.category}
-                <span className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${active ? "bg-white/20" : "bg-paper text-ink-faint"}`}>
-                  {num(c.count)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2~4. 시도 / 시군구 / 검색 */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">2 · 시·도</div>
-          <select
-            value={sido}
-            onChange={(e) => { setSido(e.target.value); setSigungu(""); setSelected(null); }}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink"
-          >
-            <option value="">시·도 선택</option>
-            {sidoApi.data?.items?.map((s: any) => (
-              <option key={s.name} value={s.name}>{s.name} ({num(s.count)})</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">3 · 시·군·구</div>
-          <select
-            value={sigungu}
-            onChange={(e) => { setSigungu(e.target.value); setSelected(null); }}
-            disabled={!sido}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink disabled:bg-paper disabled:text-ink-faint"
-          >
-            <option value="">{sido ? "시·군·구 선택" : "먼저 시·도 선택"}</option>
-            {sigunguApi.data?.items?.map((s: any) => (
-              <option key={s.name} value={s.name}>{s.name} ({num(s.count)})</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">4 · 기관 검색</div>
-          <input
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setSelected(null); }}
-            placeholder="기관명으로 검색"
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint"
-          />
-        </div>
-      </div>
-
-      {/* 결과: 목록 + 상세 */}
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-        {/* 좌: 기관 목록 */}
-        <Card className="!p-0" title={facPath ? `${sido} ${sigungu} · ${category} ${facilities.data ? `${facilities.data.totalElements}곳` : ""}` : "기관 목록"}>
-          <div className="p-3">
-            {!facPath && (
-              <EmptyState
-                title="기관을 찾아보세요"
-                desc="시·군·구를 선택하거나 기관명을 검색하세요."
-                icon={
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                    <path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" />
-                    <circle cx="12" cy="9.5" r="2.4" />
-                  </svg>
-                }
-              />
-            )}
-            {facilities.error && <State loading={false} error={facilities.error} />}
-            {facilities.loading && <SkeletonList rows={7} />}
-            {facPath && facilities.data?.items?.length === 0 && (
-              <EmptyState title="해당 조건의 기관이 없습니다" desc="다른 지역이나 검색어로 다시 시도해보세요." />
-            )}
-            <ul className="space-y-1">
-              {facilities.data?.items?.map((f: any) => {
-                const active = selected === f.id;
-                const b = f.summary.badge;
-                return (
-                  <li key={f.id}>
-                    <button
-                      onClick={() => setSelected(f.id)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                        active ? "bg-accent-soft ring-1 ring-accent/30" : "hover:bg-paper"
-                      }`}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium text-ink">{f.name}</span>
-                        <span className="block text-xs text-ink-faint">{f.type}{f.island ? " · 도서" : ""}</span>
-                      </span>
-                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${BADGE_CLASS[b.level]}`}>
-                        {b.label}{b.count ? ` ${b.count}` : ""}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {facilities.data?.truncated && (
-              <p className="px-2 pt-2 text-xs text-ink-faint">상위 {facilities.data.returned}곳만 표시 (총 {num(facilities.data.totalElements)}곳)</p>
-            )}
-          </div>
-        </Card>
-
-        {/* 우: 선택 기관 재고 현황 */}
-        <Card title={detail.data ? `${detail.data.institution.name} — 재고 현황` : "재고 현황"}
-          action={detail.data ? <span className="text-xs text-ink-faint">{detail.data.institution.sido} {detail.data.institution.sigungu} · {detail.data.institution.type}</span> : null}>
-          {!selected && (
-            <EmptyState
-              title="기관을 선택하세요"
-              desc="왼쪽 목록에서 기관을 선택하면 재고 현황이 표시됩니다."
-            />
-          )}
-          {detail.error && <State loading={false} error={detail.error} />}
-          {detail.loading && (
-            <>
-              <div className="mb-5 grid grid-cols-3 gap-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="rounded-lg bg-paper p-3">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="mt-2 h-6 w-10" />
-                  </div>
-                ))}
-              </div>
-              <SkeletonTable cols={6} rows={6} />
-            </>
-          )}
-          {detail.data && (
-            <>
-              <div className="mb-5 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">관리 품목</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.trackedItems}</div></div>
-                <div className="rounded-lg bg-warn-soft p-3"><div className="text-xs text-ink-muted">재주문점 미달</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-warn">{detail.data.summary.belowRop}</div></div>
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">발주 필요</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.orderNeeded}</div></div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-line">
-                      <Th>품목 (표준코드)</Th>
-                      <Th className="text-right">현재고</Th>
-                      <Th className="text-right">가용</Th>
-                      <Th className="text-right">ROP</Th>
-                      <Th className="text-right">발주권고</Th>
-                      <Th>상태</Th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {detail.data.inventory.map((r: any, i: number) => (
-                      <tr key={i} className={r.status === "CRITICAL" ? "bg-crit-soft/40" : ""}>
-                        <Td className="font-medium">{r.standardName}<span className="ml-1 font-mono text-xs text-ink-faint">{r.standardCode}</span></Td>
-                        <Td className="text-right">{num(r.onHand)}</Td>
-                        <Td className="text-right font-semibold">{num(r.available)}</Td>
-                        <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
-                        <Td className="text-right">{r.orderRecommendation > 0 ? <span className="font-bold">{num(r.orderRecommendation)}</span> : <span className="text-ink-faint">0</span>}</Td>
-                        <Td><StatusBadge status={r.status} /></Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </Card>
       </div>
     </div>
   );
 }
 
-export default function ExplorerHome() {
+export default function DashboardHome() {
   return (
     <RequireRole roles={["CENTRAL"]}>
-      <Explorer />
+      <Dashboard />
     </RequireRole>
   );
 }
