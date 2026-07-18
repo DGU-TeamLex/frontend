@@ -10,19 +10,45 @@ import {
 import RequireRole from "../components/RequireRole";
 
 const enc = encodeURIComponent;
-const STATUS_CHIPS = [
-  { key: "", label: "전체" },
-  { key: "CRITICAL", label: "긴급 부족" },
-  { key: "BELOW_ROP", label: "재주문점 미달" },
-  { key: "WATCH", label: "주의" },
-  { key: "OK", label: "정상" },
-];
+
+// 정렬 순위 (범주형)
+const RISK_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, CAUTION: 2, NORMAL: 3 };
+const STAT_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3 };
+const RISK_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "심각"], ["WARNING", "경계"], ["CAUTION", "주의"], ["NORMAL", "정상"]];
+const STATUS_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "긴급 부족"], ["BELOW_ROP", "재주문점 미달"], ["WATCH", "주의"], ["OK", "정상"]];
+
+// 정렬 가능한 헤더 셀
+function SortTh({ label, k, sortKey, dir, onSort, align = "left" }: {
+  label: string; k: string; sortKey: string | null; dir: "asc" | "desc";
+  onSort: (k: string) => void; align?: "left" | "right";
+}) {
+  const on = sortKey === k;
+  return (
+    <th
+      onClick={() => onSort(k)}
+      className={`cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors ${on ? "text-accent-dark" : "text-ink-faint hover:text-ink-muted"} ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+        {label}
+        <span className="text-[9px] leading-none opacity-70">{on ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </span>
+    </th>
+  );
+}
 
 // ── 탭 1: 전국 재고정책 (inventory-policy, 실데이터) ──────────────────────
 function PolicyTab({ initInstitution }: { initInstitution: string }) {
   const [institution, setInstitution] = useState(initInstitution);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("");          // 서버측 필터(전체 데이터 기준)
   useEffect(() => setInstitution(initInstitution), [initInstitution]);
+
+  // 컬럼별 클라이언트 필터 (불러온 목록 내에서 적용)
+  const [fInst, setFInst] = useState("");
+  const [fItem, setFItem] = useState("");
+  const [fRisk, setFRisk] = useState("");
+  const [fMin, setFMin] = useState<Record<string, string>>({});
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const path = useMemo(() => {
     const qs = new URLSearchParams();
@@ -33,57 +59,121 @@ function PolicyTab({ initInstitution }: { initInstitution: string }) {
   }, [institution, status]);
   const inv = useApi<any>(path);
 
-  const items: any[] = inv.data?.items ?? [];
-  const instName = items[0]?.institutionName;
+  const rawItems: any[] = inv.data?.items ?? [];
+  const instName = rawItems[0]?.institutionName;
+
+  function toggleSort(k: string) {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("asc"); }
+  }
+  const setMin = (k: string, v: string) => setFMin((m) => ({ ...m, [k]: v }));
+  const minInput = (k: string) => (
+    <input
+      value={fMin[k] ?? ""}
+      onChange={(e) => setMin(k, e.target.value)}
+      placeholder="≥"
+      inputMode="numeric"
+      className="w-14 rounded border border-line bg-surface px-1.5 py-1 text-right text-xs tabular-nums text-ink outline-none focus:border-accent"
+    />
+  );
+
+  const anyFilter = fInst || fItem || fRisk || Object.values(fMin).some((v) => v !== "");
+
+  const rows = useMemo(() => {
+    let r = rawItems.filter((x) => {
+      if (fInst && !`${x.institutionName ?? ""} ${x.sido ?? ""} ${x.sigungu ?? ""}`.toLowerCase().includes(fInst.toLowerCase())) return false;
+      if (fItem && !`${x.standardName ?? ""} ${x.standardCode ?? ""}`.toLowerCase().includes(fItem.toLowerCase())) return false;
+      if (fRisk && (x.supplyRiskLevel ?? "NORMAL") !== fRisk) return false;
+      for (const [k, v] of Object.entries(fMin)) {
+        if (v !== "" && Number(x[k] ?? 0) < Number(v)) return false;
+      }
+      return true;
+    });
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      r = [...r].sort((a, b) => {
+        if (sortKey === "supplyRiskLevel") return ((RISK_RANK[a.supplyRiskLevel] ?? 9) - (RISK_RANK[b.supplyRiskLevel] ?? 9)) * dir;
+        if (sortKey === "status") return ((STAT_RANK[a.status] ?? 9) - (STAT_RANK[b.status] ?? 9)) * dir;
+        if (sortKey === "institutionName" || sortKey === "standardName")
+          return String(a[sortKey] ?? "").localeCompare(String(b[sortKey] ?? ""), "ko") * dir;
+        return (Number(a[sortKey] ?? 0) - Number(b[sortKey] ?? 0)) * dir;
+      });
+    }
+    return r;
+  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir]);
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {STATUS_CHIPS.map((c) => (
-          <button
-            key={c.key}
-            onClick={() => setStatus(c.key)}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
-              status === c.key ? "border-accent bg-accent text-white" : "border-line bg-surface text-ink-muted hover:border-accent/40 hover:text-ink"
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
+      <Toolbar className="mb-4">
+        <Field label="상태 (전국 조회)">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="min-w-[150px]">
+            {STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </Select>
+        </Field>
         {institution && (
           <button
             onClick={() => setInstitution("")}
-            className="ml-auto flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink-muted hover:text-crit"
+            className="flex items-center gap-1.5 self-end rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink-muted hover:text-crit"
           >
-            <span className="font-medium text-ink">{instName ?? "선택 기관"}</span> 필터 해제 ✕
+            <span className="font-medium text-ink">{instName ?? "선택 기관"}</span> ✕
           </button>
         )}
-      </div>
+        {anyFilter && (
+          <button
+            onClick={() => { setFInst(""); setFItem(""); setFRisk(""); setFMin({}); }}
+            className="self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink"
+          >
+            컬럼 필터 초기화
+          </button>
+        )}
+      </Toolbar>
 
       <Card bodyClassName="p-0">
         {inv.loading && <div className="p-4"><SkeletonTable cols={8} rows={10} /></div>}
         {inv.error && <div className="p-5"><State loading={false} error={inv.error} /></div>}
-        {inv.data && items.length === 0 && (
+        {inv.data && rawItems.length === 0 && (
           <EmptyState title="해당 조건의 재고가 없습니다" desc="상태 필터나 기관을 바꿔보세요." />
         )}
-        {items.length > 0 && (
+        {rawItems.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-line">
-                  {!institution && <Th>기관</Th>}
-                  <Th>품목 (표준코드)</Th>
-                  <Th className="text-right">현재고</Th>
-                  <Th className="text-right">가용</Th>
-                  <Th className="text-right">SS</Th>
-                  <Th className="text-right">ROP</Th>
-                  <Th className="text-right">발주권고</Th>
-                  <Th>위험</Th>
-                  <Th>상태</Th>
+                  {!institution && <SortTh label="기관" k="institutionName" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />}
+                  <SortTh label="품목" k="standardName" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="현재고" k="onHand" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                  <SortTh label="가용" k="available" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                  <SortTh label="SS" k="SS" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                  <SortTh label="ROP" k="ROP" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                  <SortTh label="발주권고" k="orderRecommendation" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                  <SortTh label="위험" k="supplyRiskLevel" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="상태" k="status" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                </tr>
+                {/* 컬럼별 필터 행 */}
+                <tr className="border-b border-line bg-paper/50">
+                  {!institution && (
+                    <th className="px-2 pb-2 pt-1 align-top">
+                      <TextInput value={fInst} onChange={(e) => setFInst(e.target.value)} placeholder="기관·지역" className="w-full min-w-[110px] !py-1 !text-xs" />
+                    </th>
+                  )}
+                  <th className="px-2 pb-2 pt-1 align-top">
+                    <TextInput value={fItem} onChange={(e) => setFItem(e.target.value)} placeholder="품목·코드" className="w-full min-w-[120px] !py-1 !text-xs" />
+                  </th>
+                  <th className="px-2 pb-2 pt-1 text-right align-top">{minInput("onHand")}</th>
+                  <th className="px-2 pb-2 pt-1 text-right align-top">{minInput("available")}</th>
+                  <th className="px-2 pb-2 pt-1 text-right align-top">{minInput("SS")}</th>
+                  <th className="px-2 pb-2 pt-1 text-right align-top">{minInput("ROP")}</th>
+                  <th className="px-2 pb-2 pt-1 text-right align-top">{minInput("orderRecommendation")}</th>
+                  <th className="px-2 pb-2 pt-1 align-top">
+                    <select value={fRisk} onChange={(e) => setFRisk(e.target.value)} className="w-full min-w-[76px] rounded border border-line bg-surface px-1.5 py-1 text-xs text-ink outline-none focus:border-accent">
+                      {RISK_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </th>
+                  <th className="px-2 pb-2 pt-1 align-top" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {items.map((r, i) => (
+                {rows.map((r, i) => (
                   <tr key={i} className={`transition-colors hover:bg-paper ${r.status === "CRITICAL" ? "bg-crit-soft/30" : ""}`}>
                     {!institution && (
                       <Td className="max-w-[160px]">
@@ -104,14 +194,17 @@ function PolicyTab({ initInstitution }: { initInstitution: string }) {
                     <Td><StatusBadge status={r.status} /></Td>
                   </tr>
                 ))}
+                {rows.length === 0 && (
+                  <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-ink-faint">컬럼 필터에 맞는 행이 없습니다.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
         {inv.data?.totalElements > 0 && (
-          <div className="border-t border-line px-5 py-3 text-xs text-ink-faint">
-            {institution ? `${instName} · ` : "전국 시급도순 · "}
-            총 {num(inv.data.totalElements)}건{!institution && inv.data.totalElements >= 500 ? " 중 상위 500건" : ""}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3 text-xs text-ink-faint">
+            <span>{institution ? `${instName} · ` : "전국 시급도순 · "}총 {num(inv.data.totalElements)}건{!institution && inv.data.totalElements >= 500 ? " 중 상위 500건" : ""}</span>
+            <span>{anyFilter ? `컬럼 필터 적용: ${num(rows.length)}건 표시 (불러온 목록 내)` : `${num(rawItems.length)}건 표시`}</span>
           </div>
         )}
       </Card>
@@ -341,7 +434,7 @@ function InventoryInner() {
 
   return (
     <div>
-      <PageTitle title="재고·발주" desc="전국 재고정책(SS·ROP·발주권고), 기관별 탐색, 표준품목 검색을 한곳에서." />
+      <PageTitle title="재고·발주" desc="전국 재고정책(SS·ROP·발주권고), 기관별 탐색, 표준품목 검색을 한곳에서. 재고정책 표는 컬럼별 필터·정렬 지원." />
       <div className="mb-5">
         <Tabs
           active={tab}
