@@ -1,231 +1,199 @@
 "use client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useApi } from "./lib/api";
 import { num } from "./lib/format";
 import {
-  Card, Kpi, SectionHeader, DistBar, RiskBadge, StatusBadge,
-  Th, Td, State, Skeleton, SkeletonStatGrid, SkeletonTable, SkeletonList, EmptyState, MockBanner,
+  Card, Kpi, SectionHeader, RiskBadge, Th, Td, State,
+  SkeletonStatGrid, SkeletonTable, EmptyState, MockBanner,
 } from "./components/ui";
+import DepletionChart from "./components/DepletionChart";
 import RequireRole from "./components/RequireRole";
 
-// 알림 심각도 표시 순서·색 (alertsBySeverity 는 동적 키 object)
-const SEV_ORDER = ["HIGH", "MEDIUM", "LOW"];
-const SEV = {
-  HIGH: { label: "높음", dot: "bg-crit", bar: "bg-crit", text: "text-crit" },
-  MEDIUM: { label: "중간", dot: "bg-warn", bar: "bg-warn", text: "text-warn" },
-  LOW: { label: "낮음", dot: "bg-caution", bar: "bg-caution", text: "text-caution" },
-} as Record<string, { label: string; dot: string; bar: string; text: string }>;
+type Row = any;
 
-// 발주 우선순위 정렬: 상태 심각도 → 권고수량
-const STATUS_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3 };
+// 소진 예상일(dts)과 리드타임(L) 비교로 발주 시급도 판정
+function verdictOf(dts: number, L: number) {
+  if (!Number.isFinite(dts)) return { key: "none", label: "수요 없음", cls: "bg-paper text-ink-faint" };
+  if (dts <= L) return { key: "late", label: "리드타임 내 소진", cls: "bg-crit-soft text-crit" };
+  if (dts <= L * 2) return { key: "soon", label: "임박", cls: "bg-warn-soft text-warn" };
+  return { key: "ok", label: "여유", cls: "bg-ok-soft text-ok" };
+}
 
-function Dashboard() {
+function Forecast() {
+  const inv = useApi<any>("/inventory-policy");
   const dash = useApi<any>("/dashboard/central");
-  const orders = useApi<any>("/order-recommendations");
+  const [sel, setSel] = useState<Row | null>(null);
 
-  const s = dash.data?.summary;
-  const sevEntries = useMemo(() => {
-    const bs: Record<string, number> = dash.data?.alertsBySeverity ?? {};
-    const keys = Object.keys(bs);
-    keys.sort((a, b) => (SEV_ORDER.indexOf(a) + 99 * (SEV_ORDER.indexOf(a) < 0 ? 1 : 0)) - (SEV_ORDER.indexOf(b) + 99 * (SEV_ORDER.indexOf(b) < 0 ? 1 : 0)));
-    return keys.map((k) => ({ key: k, count: bs[k] }));
-  }, [dash.data]);
+  const rows: Row[] = useMemo(() => {
+    const items: Row[] = inv.data?.items ?? [];
+    return items
+      .map((r) => {
+        const mu = Number(r.mu ?? 0);
+        const dts = mu > 0 ? Number(r.available ?? 0) / mu : Infinity;
+        return { ...r, _mu: mu, _dts: dts, _L: Number(r.leadTimeUsed ?? 0) };
+      })
+      .filter((r) => Number.isFinite(r._dts))          // 수요 0 품목은 소진 예측 대상 아님
+      .sort((a, b) => a._dts - b._dts);
+  }, [inv.data]);
 
-  const topOrders = useMemo(() => {
-    const items: any[] = orders.data?.items ?? [];
-    return [...items]
-      .sort((a, b) =>
-        (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) ||
-        (b.recommendedQty ?? 0) - (a.recommendedQty ?? 0)
-      )
-      .slice(0, 12);
-  }, [orders.data]);
+  useEffect(() => { if (!sel && rows.length) setSel(rows[0]); }, [rows, sel]);
 
+  const noDemand = (inv.data?.items?.length ?? 0) - rows.length;
+  const kLate = rows.filter((r) => r._dts <= r._L).length;
+  const k30 = rows.filter((r) => r._dts <= 30).length;
+  const kOrder = rows.filter((r) => Number(r.orderRecommendation ?? 0) > 0).length;
   const ranking: any[] = dash.data?.supplyRiskRanking ?? [];
-  const shortage: any[] = dash.data?.topShortageInstitutions ?? [];
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl font-bold text-ink">전국 재고 현황</h1>
-          <p className="mt-1.5 text-sm text-ink-muted">
-            전국 보건의료기관의 재고·발주·공급위험을 한눈에. 아래 <b className="text-ink">지금 발주해야 할 품목</b>부터 확인하세요.
-          </p>
-        </div>
-        {dash.data?.asOf && (
-          <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-faint shadow-card">
-            기준일 {dash.data.asOf}
-          </span>
-        )}
+      <div className="mb-6">
+        <h1 className="font-serif text-2xl font-bold text-ink">재고 공급 부족 예상</h1>
+        <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
+          실측 <b className="text-ink">일평균 수요</b>(결측일 0 복원)로 재고 소진 시점을 추정하고,
+          <b className="text-ink"> 리드타임</b>과 비교해 발주 시급도를 판정합니다.
+          소진 예상이 리드타임보다 빠르면 지금 발주해도 늦습니다.
+        </p>
       </div>
 
-      {/* KPI 밴드 */}
-      {dash.loading && <SkeletonStatGrid count={5} />}
-      {dash.error && <Card><State loading={false} error={dash.error} /></Card>}
-      {s && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Kpi label="관리 기관" value={num(s.institutions)} hint="전국 보건의료기관" href="/inventory" />
-          <Kpi label="재주문점 미달" value={num(s.belowRopItems)} tone="danger" hint="발주 시급 품목" href="/inventory" />
-          <Kpi label="미해결 알림" value={num(s.openAlerts)} tone="warn" hint="확인 필요" href="/alerts" />
-          <Kpi label="위험 품목군" value={num(s.criticalRiskGroups)} tone="warn" hint="공급위험 CRITICAL" href="/supply-risk" />
-          <Kpi label="표준품목" value={num(s.standardItems)} hint={`품목군 ${num(s.itemGroups)}종`} href="/inventory" />
+      {/* KPI */}
+      {inv.loading && <SkeletonStatGrid count={4} />}
+      {inv.error && <Card><State loading={false} error={inv.error} /></Card>}
+      {!inv.loading && !inv.error && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Kpi label="리드타임 내 소진" value={num(kLate)} tone="danger" hint="발주해도 늦는 품목" />
+          <Kpi label="30일 내 소진" value={num(k30)} tone="warn" hint="곧 부족해질 품목" />
+          <Kpi label="발주 권고 발생" value={num(kOrder)} tone="accent" hint="권고수량 > 0" href="/inventory" />
+          <Kpi label="재주문점 미달(전국)" value={num(dash.data?.summary?.belowRopItems)} hint="ROP 아래 재고" href="/inventory" />
         </div>
       )}
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_340px]">
-        {/* 좌: 지금 발주해야 할 품목 (실데이터, 히어로) */}
+      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_420px]">
+        {/* 부족 예상 D-day 리스트 */}
         <Card
           bodyClassName="p-0"
-          title="지금 발주해야 할 품목"
-          action={
-            <Link href="/inventory" className="text-xs font-semibold text-accent hover:text-accent-dark">
-              전체 재고·발주 →
-            </Link>
-          }
+          title="부족 예상 순위"
+          action={<Link href="/inventory" className="text-xs font-semibold text-accent hover:text-accent-dark">재고·발주 전체 →</Link>}
         >
-          {orders.loading && <div className="p-4"><SkeletonTable cols={5} rows={8} /></div>}
-          {orders.error && <div className="p-5"><State loading={false} error={orders.error} /></div>}
-          {orders.data && topOrders.length === 0 && (
-            <EmptyState title="발주가 필요한 품목이 없습니다" desc="모든 품목이 재주문점 이상입니다." />
+          {inv.loading && <div className="p-4"><SkeletonTable cols={6} rows={10} /></div>}
+          {!inv.loading && rows.length === 0 && (
+            <EmptyState title="소진 예상 품목이 없습니다" desc="수요가 기록된 품목이 없어 소진 시점을 추정할 수 없습니다." />
           )}
-          {topOrders.length > 0 && (
-            <div className="overflow-x-auto">
+          {rows.length > 0 && (
+            <div className="max-h-[520px] overflow-auto">
               <table className="w-full">
-                <thead>
+                <thead className="sticky top-0 bg-surface">
                   <tr className="border-b border-line">
                     <Th>기관 · 품목</Th>
                     <Th className="text-right">가용</Th>
-                    <Th className="text-right">ROP</Th>
-                    <Th className="text-right">권고수량</Th>
-                    <Th>상태</Th>
+                    <Th className="text-right">일평균수요</Th>
+                    <Th className="text-right">소진예상</Th>
+                    <Th className="text-right">리드타임</Th>
+                    <Th>판정</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {topOrders.map((r, i) => (
-                    <tr key={i} className={`transition-colors hover:bg-paper ${r.status === "CRITICAL" ? "bg-crit-soft/30" : ""}`}>
-                      <Td className="max-w-0">
-                        <span className="block truncate font-medium text-ink">{r.standardName}</span>
-                        <span className="block truncate text-xs text-ink-faint">{r.institutionName}</span>
-                      </Td>
-                      <Td className="text-right font-semibold">{num(r.available)}</Td>
-                      <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
-                      <Td className="text-right">
-                        <span className="font-bold text-accent-dark">{num(r.recommendedQty)}</span>
-                        <span className="ml-0.5 text-xs text-ink-faint">{r.uom}</span>
-                      </Td>
-                      <Td><StatusBadge status={r.status} /></Td>
-                    </tr>
-                  ))}
+                  {rows.slice(0, 100).map((r, i) => {
+                    const v = verdictOf(r._dts, r._L);
+                    const on = sel && sel.standardCode === r.standardCode && sel.institutionId === r.institutionId;
+                    return (
+                      <tr
+                        key={i}
+                        onClick={() => setSel(r)}
+                        className={`cursor-pointer transition-colors ${on ? "bg-accent-soft" : "hover:bg-paper"}`}
+                      >
+                        <Td className="max-w-0">
+                          <span className="block truncate font-medium text-ink">{r.standardName}</span>
+                          <span className="block truncate text-xs text-ink-faint">{r.institutionName}</span>
+                        </Td>
+                        <Td className="text-right font-semibold">{num(r.available)}</Td>
+                        <Td className="text-right text-ink-muted">{r._mu.toFixed(2)}</Td>
+                        <Td className="text-right font-bold text-ink">D+{Math.round(r._dts)}</Td>
+                        <Td className="text-right text-ink-muted">{Math.round(r._L)}일</Td>
+                        <Td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${v.cls}`}>{v.label}</span></Td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-          {orders.data?.totalElements > topOrders.length && (
-            <div className="border-t border-line px-5 py-3 text-xs text-ink-faint">
-              발주권고 총 {num(orders.data.totalElements)}건 중 상위 {topOrders.length}건 · 전체는 재고·발주에서
-            </div>
-          )}
+          <div className="border-t border-line px-5 py-3 text-xs text-ink-faint">
+            소진 임박순 상위 {Math.min(rows.length, 100)}건 표시
+            {noDemand > 0 && ` · 수요 기록 없는 ${num(noDemand)}건 제외`}
+          </div>
         </Card>
 
-        {/* 우: 알림 분포 + 부족 상위 기관 + 공급위험 랭킹 */}
+        {/* 선택 품목: 재고량 예상 곡선 + 발주권고 */}
         <div className="space-y-5">
-          <Card title="알림 심각도">
-            {dash.loading && <div className="space-y-2"><Skeleton className="h-2.5 w-full" /><Skeleton className="h-4 w-2/3" /></div>}
-            {s && (
+          <Card title="재고량 예상">
+            {!sel && <EmptyState title="품목을 선택하세요" desc="왼쪽 목록에서 품목을 클릭하면 소진 곡선이 표시됩니다." />}
+            {sel && (
               <>
-                <DistBar
-                  className="mb-3"
-                  segments={sevEntries.map((e) => ({
-                    value: e.count,
-                    className: SEV[e.key]?.bar ?? "bg-ink-faint",
-                    label: SEV[e.key]?.label ?? e.key,
-                  }))}
+                <div className="mb-3">
+                  <div className="truncate font-semibold text-ink">{sel.standardName}</div>
+                  <div className="truncate text-xs text-ink-faint">{sel.institutionName}</div>
+                </div>
+                <DepletionChart
+                  available={Number(sel.available ?? 0)}
+                  mu={sel._mu}
+                  SS={Number(sel.SS ?? 0)}
+                  ROP={Number(sel.ROP ?? 0)}
+                  leadTime={sel._L}
+                  uom={sel.uom ?? ""}
                 />
-                {sevEntries.length === 0 ? (
-                  <p className="text-sm text-ink-faint">미해결 알림 없음</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {sevEntries.map((e) => (
-                      <li key={e.key} className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${SEV[e.key]?.dot ?? "bg-ink-faint"}`} />
-                          <span className="text-ink-muted">{SEV[e.key]?.label ?? e.key}</span>
-                        </span>
-                        <span className={`font-bold tabular-nums ${SEV[e.key]?.text ?? "text-ink"}`}>{num(e.count)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Link href="/alerts" className="mt-3 block text-xs font-semibold text-accent hover:text-accent-dark">
-                  알림 전체 보기 →
-                </Link>
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <dt className="text-ink-faint">현재 가용</dt>
+                  <dd className="text-right font-semibold tabular-nums text-ink">{num(sel.available)} {sel.uom}</dd>
+                  <dt className="text-ink-faint">일평균 수요</dt>
+                  <dd className="text-right tabular-nums text-ink">{sel._mu.toFixed(2)}</dd>
+                  <dt className="text-ink-faint">안전재고 SS</dt>
+                  <dd className="text-right tabular-nums text-ink">{num(Math.round(sel.SS ?? 0))}</dd>
+                  <dt className="text-ink-faint">재주문점 ROP</dt>
+                  <dd className="text-right tabular-nums text-ink">{num(Math.round(sel.ROP ?? 0))}</dd>
+                </dl>
+                <div className="mt-4 flex items-center justify-between rounded-lg bg-accent-soft px-4 py-3">
+                  <span className="text-sm font-semibold text-accent-dark">권고 발주량</span>
+                  <span className="font-serif text-xl font-bold tabular-nums text-accent-dark">
+                    {num(sel.orderRecommendation)} <span className="text-xs font-normal">{sel.uom}</span>
+                  </span>
+                </div>
               </>
             )}
           </Card>
 
-          <Card title="재고 부족 상위 기관">
-            {dash.loading && <SkeletonList rows={5} />}
-            {shortage.length === 0 && !dash.loading && <p className="text-sm text-ink-faint">부족 기관 없음</p>}
-            <ul className="space-y-1">
-              {shortage.map((f, i) => (
-                <li key={f.institutionId}>
-                  <Link
-                    href={`/inventory?institution=${encodeURIComponent(f.institutionId)}`}
-                    className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-paper"
-                  >
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-paper text-[11px] font-bold tabular-nums text-ink-faint">{i + 1}</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{f.institutionName}</span>
-                    <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold tabular-nums text-warn">
-                      {num(f.shortageItems)}
-                    </span>
-                  </Link>
+          <Card title="공급위험 상위 품목군">
+            <MockBanner reason="원자재·뉴스 실연동 전 목업값(모듈 C)." />
+            {ranking.length === 0 && <p className="text-sm text-ink-faint">데이터 없음</p>}
+            <ul className="space-y-2">
+              {ranking.slice(0, 4).map((r) => (
+                <li key={r.itemGroupId} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.itemGroupName}</span>
+                  <span className="tabular-nums text-xs text-ink-faint">{r.riskScore}</span>
+                  <RiskBadge level={r.level} />
                 </li>
               ))}
             </ul>
+            <Link href="/supply-risk" className="mt-3 block text-xs font-semibold text-accent hover:text-accent-dark">
+              공급위험 상세 →
+            </Link>
           </Card>
         </div>
       </div>
 
-      {/* 공급위험 랭킹 (MOCK) */}
-      <div className="mt-6">
-        <SectionHeader
-          title="공급위험 품목군 랭킹"
-          desc="원자재·뉴스 기반 공급위험 점수 상위"
-          action={<Link href="/supply-risk" className="text-xs font-semibold text-accent hover:text-accent-dark">공급위험 상세 →</Link>}
-        />
-        <MockBanner reason="공급위험 점수는 외부지표 실연동 전 데모 목업값입니다." />
-        {dash.loading && <SkeletonStatGrid count={4} />}
-        {ranking.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {ranking.slice(0, 4).map((r) => (
-              <Link
-                key={r.itemGroupId}
-                href={`/supply-risk`}
-                className="rounded-xl border border-line bg-surface p-4 shadow-card transition-shadow hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-2 text-sm font-semibold text-ink">{r.itemGroupName}</span>
-                  <RiskBadge level={r.level} />
-                </div>
-                <div className="mt-3 flex items-end justify-between">
-                  <span className="text-xs text-ink-faint">위험점수</span>
-                  <span className="font-serif text-xl font-bold tabular-nums text-ink">{num(r.riskScore)}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <p className="mt-6 text-xs leading-relaxed text-ink-faint">
+        ※ 소진 곡선은 실측 일평균 수요를 일정하다고 본 <b>선형 투영</b>입니다. 수요의 간헐성·변동성을 반영한
+        예측(Croston·SBA·TSB)은 AI 모듈 B에서 산출 예정이며, 연동 시 이 곡선이 그대로 고도화됩니다
+        (<Link href="/inventory" className="underline underline-offset-2">재고·발주</Link>에서 전체 표 확인).
+      </p>
     </div>
   );
 }
 
-export default function DashboardHome() {
+export default function ForecastHome() {
   return (
     <RequireRole roles={["CENTRAL"]}>
-      <Dashboard />
+      <Forecast />
     </RequireRole>
   );
 }
