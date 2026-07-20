@@ -1,253 +1,199 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useApi } from "./lib/api";
 import { num } from "./lib/format";
-import { Card, StatusBadge, Th, Td, State, PageTitle, Skeleton, SkeletonList, SkeletonTable, EmptyState } from "./components/ui";
+import {
+  Card, Kpi, SectionHeader, RiskBadge, Th, Td, State,
+  SkeletonStatGrid, SkeletonTable, EmptyState, MockBanner,
+} from "./components/ui";
+import DepletionChart from "./components/DepletionChart";
 import RequireRole from "./components/RequireRole";
 
-const BADGE_CLASS: Record<string, string> = {
-  CRITICAL: "bg-crit-soft text-crit border-transparent",
-  WARN: "bg-warn-soft text-warn border-transparent",
-  WATCH: "bg-caution-soft text-caution border-transparent",
-  OK: "bg-ok-soft text-ok border-transparent",
-};
+type Row = any;
 
-const enc = encodeURIComponent;
+// 소진 예상일(dts)과 리드타임(L) 비교로 발주 시급도 판정
+function verdictOf(dts: number, L: number) {
+  if (!Number.isFinite(dts)) return { key: "none", label: "수요 없음", cls: "bg-paper text-ink-faint" };
+  if (dts <= L) return { key: "late", label: "리드타임 내 소진", cls: "bg-crit-soft text-crit" };
+  if (dts <= L * 2) return { key: "soon", label: "임박", cls: "bg-warn-soft text-warn" };
+  return { key: "ok", label: "여유", cls: "bg-ok-soft text-ok" };
+}
 
-function Explorer() {
-  const [category, setCategory] = useState<string | null>(null);
-  const [sido, setSido] = useState<string>("");
-  const [sigungu, setSigungu] = useState<string>("");
-  const [q, setQ] = useState<string>("");
-  const [selected, setSelected] = useState<string | null>(null);
+function Forecast() {
+  const inv = useApi<any>("/inventory-policy");
+  const dash = useApi<any>("/dashboard/central");
+  const [sel, setSel] = useState<Row | null>(null);
 
-  const cats = useApi<any>("/facility-categories");
-  // 카테고리 기본값
-  useEffect(() => {
-    if (!category && cats.data?.items?.length) setCategory(cats.data.items[0].category);
-  }, [cats.data, category]);
+  const rows: Row[] = useMemo(() => {
+    const items: Row[] = inv.data?.items ?? [];
+    return items
+      .map((r) => {
+        const mu = Number(r.mu ?? 0);
+        const dts = mu > 0 ? Number(r.available ?? 0) / mu : Infinity;
+        return { ...r, _mu: mu, _dts: dts, _L: Number(r.leadTimeUsed ?? 0) };
+      })
+      .filter((r) => Number.isFinite(r._dts))          // 수요 0 품목은 소진 예측 대상 아님
+      .sort((a, b) => a._dts - b._dts);
+  }, [inv.data]);
 
-  const sidoApi = useApi<any>(category ? `/facility-regions?category=${enc(category)}` : null);
-  const sigunguApi = useApi<any>(category && sido ? `/facility-regions?category=${enc(category)}&sido=${enc(sido)}` : null);
+  useEffect(() => { if (!sel && rows.length) setSel(rows[0]); }, [rows, sel]);
 
-  const facPath = useMemo(() => {
-    if (!category || !sido) return null;
-    if (!sigungu && !q) return null;
-    let p = `/facilities?category=${enc(category)}&sido=${enc(sido)}`;
-    if (sigungu) p += `&sigungu=${enc(sigungu)}`;
-    if (q) p += `&q=${enc(q)}`;
-    return p;
-  }, [category, sido, sigungu, q]);
-  const facilities = useApi<any>(facPath);
-
-  // 목록 로드되면 첫 기관 자동 선택
-  useEffect(() => {
-    const items = facilities.data?.items;
-    if (items?.length) setSelected(items[0].id);
-    else setSelected(null);
-  }, [facilities.data]);
-
-  const detail = useApi<any>(selected ? `/facilities/${selected}` : null);
+  const noDemand = (inv.data?.items?.length ?? 0) - rows.length;
+  const kLate = rows.filter((r) => r._dts <= r._L).length;
+  const k30 = rows.filter((r) => r._dts <= 30).length;
+  const kOrder = rows.filter((r) => Number(r.orderRecommendation ?? 0) > 0).length;
+  const ranking: any[] = dash.data?.supplyRiskRanking ?? [];
 
   return (
     <div>
-      <PageTitle
-        title="지역·기관 재고 탐색"
-        desc="기관유형과 지역(시·도→시·군·구)을 선택하면 해당 보건의료기관의 재고 현황을 볼 수 있습니다. (전국 지역보건의료기관 현황, 보건복지부)"
-      />
-
-      {/* 1. 기관 유형 */}
-      <div className="mb-5">
-        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">1 · 기관 유형</div>
-        {cats.error && <State loading={false} error={cats.error} />}
-        {cats.loading && (
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-32" />
-            ))}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {cats.data?.items?.map((c: any) => {
-            const active = category === c.category;
-            return (
-              <button
-                key={c.category}
-                onClick={() => { setCategory(c.category); setSido(""); setSigungu(""); setSelected(null); }}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-surface text-ink-muted hover:border-accent/40 hover:text-ink"
-                }`}
-              >
-                {c.category}
-                <span className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${active ? "bg-white/20" : "bg-paper text-ink-faint"}`}>
-                  {num(c.count)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="mb-6">
+        <h1 className="font-serif text-2xl font-bold text-ink">재고 공급 부족 예상</h1>
+        <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
+          실측 <b className="text-ink">일평균 수요</b>(결측일 0 복원)로 재고 소진 시점을 추정하고,
+          <b className="text-ink"> 리드타임</b>과 비교해 발주 시급도를 판정합니다.
+          소진 예상이 리드타임보다 빠르면 지금 발주해도 늦습니다.
+        </p>
       </div>
 
-      {/* 2~4. 시도 / 시군구 / 검색 */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">2 · 시·도</div>
-          <select
-            value={sido}
-            onChange={(e) => { setSido(e.target.value); setSigungu(""); setSelected(null); }}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink"
-          >
-            <option value="">시·도 선택</option>
-            {sidoApi.data?.items?.map((s: any) => (
-              <option key={s.name} value={s.name}>{s.name} ({num(s.count)})</option>
-            ))}
-          </select>
+      {/* KPI */}
+      {inv.loading && <SkeletonStatGrid count={4} />}
+      {inv.error && <Card><State loading={false} error={inv.error} /></Card>}
+      {!inv.loading && !inv.error && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Kpi label="리드타임 내 소진" value={num(kLate)} tone="danger" hint="발주해도 늦는 품목" />
+          <Kpi label="30일 내 소진" value={num(k30)} tone="warn" hint="곧 부족해질 품목" />
+          <Kpi label="발주 권고 발생" value={num(kOrder)} tone="accent" hint="권고수량 > 0" href="/inventory" />
+          <Kpi label="재주문점 미달(전국)" value={num(dash.data?.summary?.belowRopItems)} hint="ROP 아래 재고" href="/inventory" />
         </div>
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">3 · 시·군·구</div>
-          <select
-            value={sigungu}
-            onChange={(e) => { setSigungu(e.target.value); setSelected(null); }}
-            disabled={!sido}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink disabled:bg-paper disabled:text-ink-faint"
-          >
-            <option value="">{sido ? "시·군·구 선택" : "먼저 시·도 선택"}</option>
-            {sigunguApi.data?.items?.map((s: any) => (
-              <option key={s.name} value={s.name}>{s.name} ({num(s.count)})</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-faint">4 · 기관 검색</div>
-          <input
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setSelected(null); }}
-            placeholder="기관명으로 검색"
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint"
-          />
-        </div>
-      </div>
+      )}
 
-      {/* 결과: 목록 + 상세 */}
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-        {/* 좌: 기관 목록 */}
-        <Card className="!p-0" title={facPath ? `${sido} ${sigungu} · ${category} ${facilities.data ? `${facilities.data.totalElements}곳` : ""}` : "기관 목록"}>
-          <div className="p-3">
-            {!facPath && (
-              <EmptyState
-                title="기관을 찾아보세요"
-                desc="시·군·구를 선택하거나 기관명을 검색하세요."
-                icon={
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                    <path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" />
-                    <circle cx="12" cy="9.5" r="2.4" />
-                  </svg>
-                }
-              />
-            )}
-            {facilities.error && <State loading={false} error={facilities.error} />}
-            {facilities.loading && <SkeletonList rows={7} />}
-            {facPath && facilities.data?.items?.length === 0 && (
-              <EmptyState title="해당 조건의 기관이 없습니다" desc="다른 지역이나 검색어로 다시 시도해보세요." />
-            )}
-            <ul className="space-y-1">
-              {facilities.data?.items?.map((f: any) => {
-                const active = selected === f.id;
-                const b = f.summary.badge;
-                return (
-                  <li key={f.id}>
-                    <button
-                      onClick={() => setSelected(f.id)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                        active ? "bg-accent-soft ring-1 ring-accent/30" : "hover:bg-paper"
-                      }`}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium text-ink">{f.name}</span>
-                        <span className="block text-xs text-ink-faint">{f.type}{f.island ? " · 도서" : ""}</span>
-                      </span>
-                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${BADGE_CLASS[b.level]}`}>
-                        {b.label}{b.count ? ` ${b.count}` : ""}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {facilities.data?.truncated && (
-              <p className="px-2 pt-2 text-xs text-ink-faint">상위 {facilities.data.returned}곳만 표시 (총 {num(facilities.data.totalElements)}곳)</p>
-            )}
-          </div>
-        </Card>
-
-        {/* 우: 선택 기관 재고 현황 */}
-        <Card title={detail.data ? `${detail.data.institution.name} — 재고 현황` : "재고 현황"}
-          action={detail.data ? <span className="text-xs text-ink-faint">{detail.data.institution.sido} {detail.data.institution.sigungu} · {detail.data.institution.type}</span> : null}>
-          {!selected && (
-            <EmptyState
-              title="기관을 선택하세요"
-              desc="왼쪽 목록에서 기관을 선택하면 재고 현황이 표시됩니다."
-            />
+      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_420px]">
+        {/* 부족 예상 D-day 리스트 */}
+        <Card
+          bodyClassName="p-0"
+          title="부족 예상 순위"
+          action={<Link href="/inventory" className="text-xs font-semibold text-accent hover:text-accent-dark">재고·발주 전체 →</Link>}
+        >
+          {inv.loading && <div className="p-4"><SkeletonTable cols={6} rows={10} /></div>}
+          {!inv.loading && rows.length === 0 && (
+            <EmptyState title="소진 예상 품목이 없습니다" desc="수요가 기록된 품목이 없어 소진 시점을 추정할 수 없습니다." />
           )}
-          {detail.error && <State loading={false} error={detail.error} />}
-          {detail.loading && (
-            <>
-              <div className="mb-5 grid grid-cols-3 gap-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="rounded-lg bg-paper p-3">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="mt-2 h-6 w-10" />
-                  </div>
-                ))}
-              </div>
-              <SkeletonTable cols={6} rows={6} />
-            </>
-          )}
-          {detail.data && (
-            <>
-              <div className="mb-5 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">관리 품목</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.trackedItems}</div></div>
-                <div className="rounded-lg bg-warn-soft p-3"><div className="text-xs text-ink-muted">재주문점 미달</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-warn">{detail.data.summary.belowRop}</div></div>
-                <div className="rounded-lg bg-paper p-3"><div className="text-xs text-ink-muted">발주 필요</div><div className="font-serif text-lg font-bold lining-nums tabular-nums text-ink">{detail.data.summary.orderNeeded}</div></div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-line">
-                      <Th>품목 (표준코드)</Th>
-                      <Th className="text-right">현재고</Th>
-                      <Th className="text-right">가용</Th>
-                      <Th className="text-right">ROP</Th>
-                      <Th className="text-right">발주권고</Th>
-                      <Th>상태</Th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {detail.data.inventory.map((r: any, i: number) => (
-                      <tr key={i} className={r.status === "CRITICAL" ? "bg-crit-soft/40" : ""}>
-                        <Td className="font-medium">{r.standardName}<span className="ml-1 font-mono text-xs text-ink-faint">{r.standardCode}</span></Td>
-                        <Td className="text-right">{num(r.onHand)}</Td>
+          {rows.length > 0 && (
+            <div className="max-h-[520px] overflow-auto">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="border-b border-line">
+                    <Th>기관 · 품목</Th>
+                    <Th className="text-right">가용</Th>
+                    <Th className="text-right">일평균수요</Th>
+                    <Th className="text-right">소진예상</Th>
+                    <Th className="text-right">리드타임</Th>
+                    <Th>판정</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {rows.slice(0, 100).map((r, i) => {
+                    const v = verdictOf(r._dts, r._L);
+                    const on = sel && sel.standardCode === r.standardCode && sel.institutionId === r.institutionId;
+                    return (
+                      <tr
+                        key={i}
+                        onClick={() => setSel(r)}
+                        className={`cursor-pointer transition-colors ${on ? "bg-accent-soft" : "hover:bg-paper"}`}
+                      >
+                        <Td className="max-w-0">
+                          <span className="block truncate font-medium text-ink">{r.standardName}</span>
+                          <span className="block truncate text-xs text-ink-faint">{r.institutionName}</span>
+                        </Td>
                         <Td className="text-right font-semibold">{num(r.available)}</Td>
-                        <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
-                        <Td className="text-right">{r.orderRecommendation > 0 ? <span className="font-bold">{num(r.orderRecommendation)}</span> : <span className="text-ink-faint">0</span>}</Td>
-                        <Td><StatusBadge status={r.status} /></Td>
+                        <Td className="text-right text-ink-muted">{r._mu.toFixed(2)}</Td>
+                        <Td className="text-right font-bold text-ink">D+{Math.round(r._dts)}</Td>
+                        <Td className="text-right text-ink-muted">{Math.round(r._L)}일</Td>
+                        <Td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${v.cls}`}>{v.label}</span></Td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
+          <div className="border-t border-line px-5 py-3 text-xs text-ink-faint">
+            소진 임박순 상위 {Math.min(rows.length, 100)}건 표시
+            {noDemand > 0 && ` · 수요 기록 없는 ${num(noDemand)}건 제외`}
+          </div>
         </Card>
+
+        {/* 선택 품목: 재고량 예상 곡선 + 발주권고 */}
+        <div className="space-y-5">
+          <Card title="재고량 예상">
+            {!sel && <EmptyState title="품목을 선택하세요" desc="왼쪽 목록에서 품목을 클릭하면 소진 곡선이 표시됩니다." />}
+            {sel && (
+              <>
+                <div className="mb-3">
+                  <div className="truncate font-semibold text-ink">{sel.standardName}</div>
+                  <div className="truncate text-xs text-ink-faint">{sel.institutionName}</div>
+                </div>
+                <DepletionChart
+                  available={Number(sel.available ?? 0)}
+                  mu={sel._mu}
+                  SS={Number(sel.SS ?? 0)}
+                  ROP={Number(sel.ROP ?? 0)}
+                  leadTime={sel._L}
+                  uom={sel.uom ?? ""}
+                />
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <dt className="text-ink-faint">현재 가용</dt>
+                  <dd className="text-right font-semibold tabular-nums text-ink">{num(sel.available)} {sel.uom}</dd>
+                  <dt className="text-ink-faint">일평균 수요</dt>
+                  <dd className="text-right tabular-nums text-ink">{sel._mu.toFixed(2)}</dd>
+                  <dt className="text-ink-faint">안전재고 SS</dt>
+                  <dd className="text-right tabular-nums text-ink">{num(Math.round(sel.SS ?? 0))}</dd>
+                  <dt className="text-ink-faint">재주문점 ROP</dt>
+                  <dd className="text-right tabular-nums text-ink">{num(Math.round(sel.ROP ?? 0))}</dd>
+                </dl>
+                <div className="mt-4 flex items-center justify-between rounded-lg bg-accent-soft px-4 py-3">
+                  <span className="text-sm font-semibold text-accent-dark">권고 발주량</span>
+                  <span className="font-serif text-xl font-bold tabular-nums text-accent-dark">
+                    {num(sel.orderRecommendation)} <span className="text-xs font-normal">{sel.uom}</span>
+                  </span>
+                </div>
+              </>
+            )}
+          </Card>
+
+          <Card title="공급위험 상위 품목군">
+            <MockBanner reason="원자재·뉴스 실연동 전 목업값(모듈 C)." />
+            {ranking.length === 0 && <p className="text-sm text-ink-faint">데이터 없음</p>}
+            <ul className="space-y-2">
+              {ranking.slice(0, 4).map((r) => (
+                <li key={r.itemGroupId} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.itemGroupName}</span>
+                  <span className="tabular-nums text-xs text-ink-faint">{r.riskScore}</span>
+                  <RiskBadge level={r.level} />
+                </li>
+              ))}
+            </ul>
+            <Link href="/supply-risk" className="mt-3 block text-xs font-semibold text-accent hover:text-accent-dark">
+              공급위험 상세 →
+            </Link>
+          </Card>
+        </div>
       </div>
+
+      <p className="mt-6 text-xs leading-relaxed text-ink-faint">
+        ※ 소진 곡선은 실측 일평균 수요를 일정하다고 본 <b>선형 투영</b>입니다. 수요의 간헐성·변동성을 반영한
+        예측(Croston·SBA·TSB)은 AI 모듈 B에서 산출 예정이며, 연동 시 이 곡선이 그대로 고도화됩니다
+        (<Link href="/inventory" className="underline underline-offset-2">재고·발주</Link>에서 전체 표 확인).
+      </p>
     </div>
   );
 }
 
-export default function ExplorerHome() {
+export default function ForecastHome() {
   return (
     <RequireRole roles={["CENTRAL"]}>
-      <Explorer />
+      <Forecast />
     </RequireRole>
   );
 }
