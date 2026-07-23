@@ -46,9 +46,10 @@ function Forecast() {
       // isMedical/demandClass 가 아직 미적재(null)면 통과(보수적).
       .filter((r) => r.isMedical !== false && r.demandClass !== "DORMANT")
       .map((r) => {
-        // 소진예측 수요는 절단보정값(muCorrected) 우선 — '재고 없어 못 판' 수요를 복원한 값.
-        // 미적재면 원본 mu 로 폴백.
-        const mu = Number(r.muCorrected ?? r.mu ?? 0);
+        // 소진예측 수요율 = 예측치(muForecast, 직전3개월 roll3) 우선.
+        // 홀드아웃 백테스트에서 roll3(WAPE 42.6%)가 정적평균(49.9%)·절단보정보다 정확.
+        // muForecast 미적재(최근 무활동)면 절단보정→원본 mu 순으로 폴백.
+        const mu = Number(r.muForecast ?? r.muCorrected ?? r.mu ?? 0);
         const dts = mu > 0 ? Number(r.available ?? 0) / mu : Infinity;
         return { ...r, _mu: mu, _dts: dts, _L: Number(r.leadTimeUsed ?? 0) };
       })
@@ -69,7 +70,7 @@ function Forecast() {
       <div className="mb-6">
         <h1 className="font-serif text-2xl font-bold text-ink">재고 공급 부족 예상</h1>
         <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
-          <b className="text-ink">절단보정 수요</b>(재고가 없어 못 판 수요까지 복원)로 소진 시점을 추정하고,
+          <b className="text-ink">예측 수요율</b>(직전 3개월 실적 기반)로 소진 시점을 추정하고,
           <b className="text-ink"> 리드타임</b>과 비교해 발주 시급도를 판정합니다.
           판촉·홍보물(비의료품)과 <b className="text-ink">휴면 품목</b>(재고 있어도 안 씀)은 제외했습니다.
         </p>
@@ -105,7 +106,7 @@ function Forecast() {
                   <tr className="border-b border-line">
                     <Th>기관 · 품목</Th>
                     <Th className="text-right">가용</Th>
-                    <Th className="text-right">보정수요</Th>
+                    <Th className="text-right">예측수요</Th>
                     <Th className="text-right">소진예상</Th>
                     <Th className="text-right">리드타임</Th>
                     <Th>판정</Th>
@@ -170,7 +171,7 @@ function Forecast() {
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <dt className="text-ink-faint">현재 가용</dt>
                   <dd className="text-right font-semibold tabular-nums text-ink">{num(sel.available)} {sel.uom}</dd>
-                  <dt className="text-ink-faint">보정 일수요</dt>
+                  <dt className="text-ink-faint">예측 일수요</dt>
                   <dd className="text-right tabular-nums text-ink">
                     {sel._mu.toFixed(2)}
                     {sel.mu != null && Number(sel.mu) !== sel._mu && (
@@ -212,8 +213,9 @@ function Forecast() {
       </div>
 
       <p className="mt-6 text-xs leading-relaxed text-ink-faint">
-        ※ 소진 곡선은 실측 일평균 수요를 일정하다고 본 <b>선형 투영</b>입니다. 수요의 간헐성·변동성을 반영한
-        예측(Croston·SBA·TSB)은 AI 모듈 B에서 산출 예정이며, 연동 시 이 곡선이 그대로 고도화됩니다
+        ※ 소진 곡선은 <b>직전 3개월 실적 기반 예측 수요율</b>을 일정하다고 본 선형 투영입니다.
+        홀드아웃 백테스트(미검증 3개월)에서 이 방식(WAPE 42.6%)이 24개월 정적평균(49.9%)보다 정확했습니다.
+        수요의 간헐성·변동성까지 반영한 AI 예측(LightGBM, 독립테스트 WAPE 37.6%)은 연동 시 이 곡선이 그대로 고도화됩니다
         (<Link href="/inventory" className="underline underline-offset-2">재고·발주</Link>에서 전체 표 확인).
       </p>
     </div>
