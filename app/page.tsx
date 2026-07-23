@@ -20,6 +20,20 @@ function verdictOf(dts: number, L: number) {
   return { key: "ok", label: "여유", cls: "bg-ok-soft text-ok" };
 }
 
+// 수요패턴(Syntetos-Boylan) 뱃지 — 예측 난이도·방법을 한눈에.
+// lumpy/intermittent = 간헐수요(단순평균 부적합, Croston류 필요). smooth = 예측 쉬움.
+const PATTERN: Record<string, { label: string; cls: string }> = {
+  lumpy: { label: "간헐·변동", cls: "bg-crit-soft text-crit" },
+  intermittent: { label: "간헐", cls: "bg-warn-soft text-warn" },
+  erratic: { label: "변동", cls: "bg-caution-soft text-caution" },
+  smooth: { label: "안정", cls: "bg-ok-soft text-ok" },
+};
+function PatternBadge({ pattern }: { pattern: string }) {
+  const p = PATTERN[pattern];
+  if (!p) return null;
+  return <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${p.cls}`}>{p.label}</span>;
+}
+
 function Forecast() {
   const inv = useApi<any>("/inventory-policy");
   const dash = useApi<any>("/dashboard/central");
@@ -28,8 +42,13 @@ function Forecast() {
   const rows: Row[] = useMemo(() => {
     const items: Row[] = inv.data?.items ?? [];
     return items
+      // 비의료품(판촉·홍보물)과 휴면품목(DORMANT: 재고 있어도 안 씀)은 예측·발주 대상 아님.
+      // isMedical/demandClass 가 아직 미적재(null)면 통과(보수적).
+      .filter((r) => r.isMedical !== false && r.demandClass !== "DORMANT")
       .map((r) => {
-        const mu = Number(r.mu ?? 0);
+        // 소진예측 수요는 절단보정값(muCorrected) 우선 — '재고 없어 못 판' 수요를 복원한 값.
+        // 미적재면 원본 mu 로 폴백.
+        const mu = Number(r.muCorrected ?? r.mu ?? 0);
         const dts = mu > 0 ? Number(r.available ?? 0) / mu : Infinity;
         return { ...r, _mu: mu, _dts: dts, _L: Number(r.leadTimeUsed ?? 0) };
       })
@@ -50,9 +69,9 @@ function Forecast() {
       <div className="mb-6">
         <h1 className="font-serif text-2xl font-bold text-ink">재고 공급 부족 예상</h1>
         <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
-          실측 <b className="text-ink">일평균 수요</b>(결측일 0 복원)로 재고 소진 시점을 추정하고,
+          <b className="text-ink">절단보정 수요</b>(재고가 없어 못 판 수요까지 복원)로 소진 시점을 추정하고,
           <b className="text-ink"> 리드타임</b>과 비교해 발주 시급도를 판정합니다.
-          소진 예상이 리드타임보다 빠르면 지금 발주해도 늦습니다.
+          판촉·홍보물(비의료품)과 <b className="text-ink">휴면 품목</b>(재고 있어도 안 씀)은 제외했습니다.
         </p>
       </div>
 
@@ -86,7 +105,7 @@ function Forecast() {
                   <tr className="border-b border-line">
                     <Th>기관 · 품목</Th>
                     <Th className="text-right">가용</Th>
-                    <Th className="text-right">일평균수요</Th>
+                    <Th className="text-right">보정수요</Th>
                     <Th className="text-right">소진예상</Th>
                     <Th className="text-right">리드타임</Th>
                     <Th>판정</Th>
@@ -103,7 +122,10 @@ function Forecast() {
                         className={`cursor-pointer transition-colors ${on ? "bg-accent-soft" : "hover:bg-paper"}`}
                       >
                         <Td className="max-w-0">
-                          <span className="block truncate font-medium text-ink">{r.standardName}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate font-medium text-ink">{r.standardName}</span>
+                            {r.demandPattern && <PatternBadge pattern={r.demandPattern} />}
+                          </span>
                           <span className="block truncate text-xs text-ink-faint">{r.institutionName}</span>
                         </Td>
                         <Td className="text-right font-semibold">{num(r.available)}</Td>
@@ -130,9 +152,12 @@ function Forecast() {
             {!sel && <EmptyState title="품목을 선택하세요" desc="왼쪽 목록에서 품목을 클릭하면 소진 곡선이 표시됩니다." />}
             {sel && (
               <>
-                <div className="mb-3">
-                  <div className="truncate font-semibold text-ink">{sel.standardName}</div>
-                  <div className="truncate text-xs text-ink-faint">{sel.institutionName}</div>
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-ink">{sel.standardName}</div>
+                    <div className="truncate text-xs text-ink-faint">{sel.institutionName}</div>
+                  </div>
+                  {sel.demandPattern && <PatternBadge pattern={sel.demandPattern} />}
                 </div>
                 <DepletionChart
                   available={Number(sel.available ?? 0)}
@@ -145,8 +170,13 @@ function Forecast() {
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <dt className="text-ink-faint">현재 가용</dt>
                   <dd className="text-right font-semibold tabular-nums text-ink">{num(sel.available)} {sel.uom}</dd>
-                  <dt className="text-ink-faint">일평균 수요</dt>
-                  <dd className="text-right tabular-nums text-ink">{sel._mu.toFixed(2)}</dd>
+                  <dt className="text-ink-faint">보정 일수요</dt>
+                  <dd className="text-right tabular-nums text-ink">
+                    {sel._mu.toFixed(2)}
+                    {sel.mu != null && Number(sel.mu) !== sel._mu && (
+                      <span className="ml-1 text-xs text-ink-faint">(원본 {Number(sel.mu).toFixed(2)})</span>
+                    )}
+                  </dd>
                   <dt className="text-ink-faint">안전재고 SS</dt>
                   <dd className="text-right tabular-nums text-ink">{num(Math.round(sel.SS ?? 0))}</dd>
                   <dt className="text-ink-faint">재주문점 ROP</dt>
