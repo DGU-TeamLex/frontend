@@ -44,6 +44,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   const [fItem, setFItem] = useState("");
   const [fRisk, setFRisk] = useState("");
   const [fMin, setFMin] = useState<Record<string, string>>({});
+  const [showNonMed, setShowNonMed] = useState(false);  // 비의료품(판촉·홍보물) 기본 숨김
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -78,6 +79,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
 
   const rows = useMemo(() => {
     let r = rawItems.filter((x) => {
+      if (!showNonMed && x.isMedical === false) return false;  // 비의료품(색칠공부·약봉투·판촉물) 제외
       if (fInst && !`${x.institutionName ?? ""} ${x.sido ?? ""} ${x.sigungu ?? ""}`.toLowerCase().includes(fInst.toLowerCase())) return false;
       if (fItem && !`${x.standardName ?? ""} ${x.standardCode ?? ""}`.toLowerCase().includes(fItem.toLowerCase())) return false;
       if (fRisk && (x.supplyRiskLevel ?? "NORMAL") !== fRisk) return false;
@@ -97,7 +99,9 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       });
     }
     return r;
-  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir]);
+  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed]);
+
+  const nonMedCount = useMemo(() => rawItems.filter((x) => x.isMedical === false).length, [rawItems]);
 
   return (
     <div>
@@ -107,6 +111,11 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
             {STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </Select>
         </Field>
+        <label className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink">
+          <input type="checkbox" checked={showNonMed} onChange={(e) => setShowNonMed(e.target.checked)} className="accent-accent" />
+          비의료품 포함
+          {nonMedCount > 0 && !showNonMed && <span className="text-xs text-ink-faint">({num(nonMedCount)}건 숨김)</span>}
+        </label>
         {institution && (
           <button
             onClick={() => setInstitution("")}
@@ -201,7 +210,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
         {inv.data?.totalElements > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3 text-xs text-ink-faint">
             <span>{institution ? `${instName} · ` : "전국 시급도순 · "}총 {num(inv.data.totalElements)}건{!institution && inv.data.totalElements >= 500 ? " 중 상위 500건" : ""}</span>
-            <span>{anyFilter ? `컬럼 필터 적용: ${num(rows.length)}건 표시 (불러온 목록 내)` : `${num(rawItems.length)}건 표시`}</span>
+            <span>{rows.length !== rawItems.length ? `${num(rows.length)}건 표시 (불러온 ${num(rawItems.length)}건 중${!showNonMed && nonMedCount > 0 ? `, 비의료 ${num(nonMedCount)} 제외` : ""})` : `${num(rawItems.length)}건 표시`}</span>
           </div>
         )}
       </Card>
