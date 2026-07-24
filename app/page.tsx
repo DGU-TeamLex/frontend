@@ -49,16 +49,25 @@ function Forecast() {
       // 재고가 남아 있으면 실제로는 소진이 아니다(혈당스틱이 코드 52개로 쪼개진 사례 등).
       // familyAvailable 미적재(null)면 통과 — 보수적.
       .filter((r) => !(Number(r.available ?? 0) <= 0 && Number(r.familyAvailable ?? 0) > 0))
+      // 미운영 제외(ai#32): 전 기간 출고 이력이 없어 재고만 0인 품목은 소진 대상이 아니다.
+      // demandClass 만으로는 못 걸러진다 — 재고공백비율이 높으면 CENSORED 로 분류되어
+      // DORMANT 필터를 통과하고, muForecast 가 없어 muCorrected(미세값)로 폴백되면
+      // '가용0 ÷ 미세수요 = D+0' 이 되어 목록 최상단을 차지한다(실측 128건 중 84건).
+      .filter((r) => r.zeroStockReason !== "NOT_OPERATED")
       .map((r) => {
         // 소진예측 수요율 = 예측치(muForecast, 직전3개월 roll3) 우선.
         // 홀드아웃 백테스트에서 roll3(WAPE 42.6%)가 정적평균(49.9%)·절단보정보다 정확.
         // muForecast 미적재(최근 무활동)면 절단보정→원본 mu 순으로 폴백.
         const mu = Number(r.muForecast ?? r.muCorrected ?? r.mu ?? 0);
         const dts = mu > 0 ? Number(r.available ?? 0) / mu : Infinity;
-        return { ...r, _mu: mu, _dts: dts, _L: Number(r.leadTimeUsed ?? 0) };
+        // 최근 3개월 실수요. 이미 재고 0 인 건들은 소진일수가 전부 0 으로 동률이 되므로,
+        // 이 값으로 2차 정렬해 '지금 실제로 쓰이고 있는' 품목을 위로 올린다.
+        // (muForecast 가 없다고 숨기지는 않는다 — 만성 결품이라 못 판 경우일 수 있음=절단편향)
+        const recent = Number(r.muForecast ?? 0);
+        return { ...r, _mu: mu, _dts: dts, _recent: recent, _L: Number(r.leadTimeUsed ?? 0) };
       })
       .filter((r) => Number.isFinite(r._dts))          // 수요 0 품목은 소진 예측 대상 아님
-      .sort((a, b) => a._dts - b._dts);
+      .sort((a, b) => a._dts - b._dts || b._recent - a._recent);  // 동률이면 최근 실수요 큰 순
   }, [inv.data]);
 
   useEffect(() => { if (!sel && rows.length) setSel(rows[0]); }, [rows, sel]);
