@@ -14,6 +14,12 @@ const RISK_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, CAUTION: 2,
 const STAT_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3 };
 const RISK_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "심각"], ["WARNING", "경계"], ["CAUTION", "주의"], ["NORMAL", "정상"]];
 const STATUS_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "긴급 부족"], ["BELOW_ROP", "재주문점 미달"], ["WATCH", "주의"], ["OK", "정상"]];
+// 재고 0 원인 (ai#32) — 라벨/색. 실결품만 진짜 발주 대상, 나머지는 참고 표기.
+const ZERO_REASON: Record<string, { l: string; c: string }> = {
+  NOT_OPERATED: { l: "미운영 (출고이력 없음)", c: "text-ink-faint" },
+  DATA_MISSING: { l: "데이터 점검 필요 (재고 없이 출고)", c: "text-warn" },
+  TRUE_STOCKOUT: { l: "실제 결품", c: "text-crit" },
+};
 
 // 정렬 가능한 헤더 셀
 function SortTh({ label, k, sortKey, dir, onSort, align = "left" }: {
@@ -46,6 +52,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   const [fMin, setFMin] = useState<Record<string, string>>({});
   const [showNonMed, setShowNonMed] = useState(false);  // 비의료품(판촉·홍보물) 기본 숨김
   const [showFamCovered, setShowFamCovered] = useState(false);  // family에 재고 있는 '긴급부족' 오탐 기본 숨김
+  const [showNotOperated, setShowNotOperated] = useState(false);  // 미운영(출고이력 전혀 없음) 재고0 기본 숨김
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -83,6 +90,8 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       if (!showNonMed && x.isMedical === false) return false;  // 비의료품(색칠공부·약봉투·판촉물) 제외
       // 물품코드 분산 오탐(ai#33): 이 코드만 0이고 같은 기관·품목군엔 재고가 있으면 긴급부족이 아님
       if (!showFamCovered && x.status === "CRITICAL" && Number(x.familyAvailable ?? 0) > 0) return false;
+      // 미운영(ai#32): 전 기간 출고이력이 없어 재고만 0인 품목 — 발주 대상 아님
+      if (!showNotOperated && x.zeroStockReason === "NOT_OPERATED") return false;
       if (fInst && !`${x.institutionName ?? ""} ${x.sido ?? ""} ${x.sigungu ?? ""}`.toLowerCase().includes(fInst.toLowerCase())) return false;
       if (fItem && !`${x.standardName ?? ""} ${x.standardCode ?? ""}`.toLowerCase().includes(fItem.toLowerCase())) return false;
       if (fRisk && (x.supplyRiskLevel ?? "NORMAL") !== fRisk) return false;
@@ -102,9 +111,13 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       });
     }
     return r;
-  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed, showFamCovered]);
+  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed, showFamCovered, showNotOperated]);
 
   const nonMedCount = useMemo(() => rawItems.filter((x) => x.isMedical === false).length, [rawItems]);
+  const notOperatedCount = useMemo(
+    () => rawItems.filter((x) => x.zeroStockReason === "NOT_OPERATED").length,
+    [rawItems],
+  );
   const famCoveredCount = useMemo(
     () => rawItems.filter((x) => x.status === "CRITICAL" && Number(x.familyAvailable ?? 0) > 0).length,
     [rawItems],
@@ -130,6 +143,14 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
           <input type="checkbox" checked={showFamCovered} onChange={(e) => setShowFamCovered(e.target.checked)} className="accent-accent" />
           품목군 재고보유분 포함
           {famCoveredCount > 0 && !showFamCovered && <span className="text-xs text-ink-faint">({num(famCoveredCount)}건 숨김)</span>}
+        </label>
+        <label
+          className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink"
+          title="전 기간 출고 이력이 없어 재고만 0인 품목 — 운영하지 않는 품목이라 발주 대상이 아님"
+        >
+          <input type="checkbox" checked={showNotOperated} onChange={(e) => setShowNotOperated(e.target.checked)} className="accent-accent" />
+          미운영 품목 포함
+          {notOperatedCount > 0 && !showNotOperated && <span className="text-xs text-ink-faint">({num(notOperatedCount)}건 숨김)</span>}
         </label>
         {institution && (
           <button
@@ -219,6 +240,12 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                         <span className="mt-0.5 block text-[11px] leading-tight text-ink-faint">
                           품목군 보유 {num(r.familyAvailable)}
                           {r.familyCodes > 1 && ` · 코드 ${r.familyCodes}개`}
+                        </span>
+                      )}
+                      {/* 재고 0 원인(ai#32) — 실결품만 실제 발주 대상 */}
+                      {r.status === "CRITICAL" && ZERO_REASON[r.zeroStockReason] && (
+                        <span className={`mt-0.5 block text-[11px] leading-tight ${ZERO_REASON[r.zeroStockReason].c}`}>
+                          {ZERO_REASON[r.zeroStockReason].l}
                         </span>
                       )}
                     </Td>
