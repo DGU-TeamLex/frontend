@@ -45,6 +45,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   const [fRisk, setFRisk] = useState("");
   const [fMin, setFMin] = useState<Record<string, string>>({});
   const [showNonMed, setShowNonMed] = useState(false);  // 비의료품(판촉·홍보물) 기본 숨김
+  const [showFamCovered, setShowFamCovered] = useState(false);  // family에 재고 있는 '긴급부족' 오탐 기본 숨김
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -80,6 +81,8 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   const rows = useMemo(() => {
     let r = rawItems.filter((x) => {
       if (!showNonMed && x.isMedical === false) return false;  // 비의료품(색칠공부·약봉투·판촉물) 제외
+      // 물품코드 분산 오탐(ai#33): 이 코드만 0이고 같은 기관·품목군엔 재고가 있으면 긴급부족이 아님
+      if (!showFamCovered && x.status === "CRITICAL" && Number(x.familyAvailable ?? 0) > 0) return false;
       if (fInst && !`${x.institutionName ?? ""} ${x.sido ?? ""} ${x.sigungu ?? ""}`.toLowerCase().includes(fInst.toLowerCase())) return false;
       if (fItem && !`${x.standardName ?? ""} ${x.standardCode ?? ""}`.toLowerCase().includes(fItem.toLowerCase())) return false;
       if (fRisk && (x.supplyRiskLevel ?? "NORMAL") !== fRisk) return false;
@@ -99,9 +102,13 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       });
     }
     return r;
-  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed]);
+  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed, showFamCovered]);
 
   const nonMedCount = useMemo(() => rawItems.filter((x) => x.isMedical === false).length, [rawItems]);
+  const famCoveredCount = useMemo(
+    () => rawItems.filter((x) => x.status === "CRITICAL" && Number(x.familyAvailable ?? 0) > 0).length,
+    [rawItems],
+  );
 
   return (
     <div>
@@ -115,6 +122,14 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
           <input type="checkbox" checked={showNonMed} onChange={(e) => setShowNonMed(e.target.checked)} className="accent-accent" />
           비의료품 포함
           {nonMedCount > 0 && !showNonMed && <span className="text-xs text-ink-faint">({num(nonMedCount)}건 숨김)</span>}
+        </label>
+        <label
+          className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink"
+          title="같은 기관·같은 품목군에 재고가 남아 있는데 이 코드만 0이라 '긴급 부족'으로 뜨는 항목"
+        >
+          <input type="checkbox" checked={showFamCovered} onChange={(e) => setShowFamCovered(e.target.checked)} className="accent-accent" />
+          품목군 재고보유분 포함
+          {famCoveredCount > 0 && !showFamCovered && <span className="text-xs text-ink-faint">({num(famCoveredCount)}건 숨김)</span>}
         </label>
         {institution && (
           <button
@@ -197,7 +212,16 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                     <Td className="text-right text-ink-muted">{num(r.ROP)}</Td>
                     <Td className="text-right">{r.orderRecommendation > 0 ? <span className="font-bold text-accent-dark">{num(r.orderRecommendation)}</span> : <span className="text-ink-faint">0</span>}</Td>
                     <Td>{r.supplyRiskLevel && r.supplyRiskLevel !== "NORMAL" ? <RiskBadge level={r.supplyRiskLevel} /> : <span className="text-xs text-ink-faint">정상</span>}</Td>
-                    <Td><StatusBadge status={r.status} /></Td>
+                    <Td>
+                      <StatusBadge status={r.status} />
+                      {/* 코드 분산 오탐 표기: 이 코드는 0이어도 같은 기관 품목군엔 재고가 있음 */}
+                      {r.status === "CRITICAL" && Number(r.familyAvailable ?? 0) > 0 && (
+                        <span className="mt-0.5 block text-[11px] leading-tight text-ink-faint">
+                          품목군 보유 {num(r.familyAvailable)}
+                          {r.familyCodes > 1 && ` · 코드 ${r.familyCodes}개`}
+                        </span>
+                      )}
+                    </Td>
                   </tr>
                 ))}
                 {rows.length === 0 && (

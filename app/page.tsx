@@ -45,6 +45,10 @@ function Forecast() {
       // 비의료품(판촉·홍보물)과 휴면품목(DORMANT: 재고 있어도 안 씀)은 예측·발주 대상 아님.
       // isMedical/demandClass 가 아직 미적재(null)면 통과(보수적).
       .filter((r) => r.isMedical !== false && r.demandClass !== "DORMANT")
+      // 물품코드 분산 오탐 제거(ai#33): 이 코드는 0이어도 같은 기관·같은 품목군(family)에
+      // 재고가 남아 있으면 실제로는 소진이 아니다(혈당스틱이 코드 52개로 쪼개진 사례 등).
+      // familyAvailable 미적재(null)면 통과 — 보수적.
+      .filter((r) => !(Number(r.available ?? 0) <= 0 && Number(r.familyAvailable ?? 0) > 0))
       .map((r) => {
         // 소진예측 수요율 = 예측치(muForecast, 직전3개월 roll3) 우선.
         // 홀드아웃 백테스트에서 roll3(WAPE 42.6%)가 정적평균(49.9%)·절단보정보다 정확.
