@@ -15,10 +15,13 @@ const STAT_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2,
 const RISK_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "심각"], ["WARNING", "경계"], ["CAUTION", "주의"], ["NORMAL", "정상"]];
 const STATUS_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "긴급 부족"], ["BELOW_ROP", "재주문점 미달"], ["WATCH", "주의"], ["OK", "정상"]];
 // 재고 0 원인 (ai#32) — 라벨/색. 실결품만 진짜 발주 대상, 나머지는 참고 표기.
-const ZERO_REASON: Record<string, { l: string; c: string }> = {
-  NOT_OPERATED: { l: "미운영 (출고이력 없음)", c: "text-ink-faint" },
-  DATA_MISSING: { l: "데이터 점검 필요 (재고 없이 출고)", c: "text-warn" },
-  TRUE_STOCKOUT: { l: "실제 결품", c: "text-crit" },
+// 재고0 원인 정렬 순위 — 조치 시급한 순(실제 결품 → 데이터 점검 → 미운영 → 해당없음)
+const ZSR_RANK: Record<string, number> = { TRUE_STOCKOUT: 0, DATA_MISSING: 1, NOT_OPERATED: 2 };
+const ZSR_OPTS: [string, string][] = [["", "전체"], ["TRUE_STOCKOUT", "실제 결품"], ["DATA_MISSING", "데이터 점검"], ["NOT_OPERATED", "미운영"]];
+const ZERO_REASON: Record<string, { l: string; t: string; c: string }> = {
+  TRUE_STOCKOUT: { l: "실제 결품", t: "출고 이력이 있고 재고 기록도 정상 — 소진 후 미보충. 실제 발주 대상.", c: "text-crit" },
+  DATA_MISSING: { l: "데이터 점검", t: "재고가 없는데 출고가 발생(출고량 > 이전재고+입고). 재고 기재 누락 가능성.", c: "text-warn" },
+  NOT_OPERATED: { l: "미운영", t: "전 기간 출고 이력이 없음 — 운영하지 않는 품목이라 발주 대상 아님.", c: "text-ink-faint" },
 };
 
 // 정렬 가능한 헤더 셀
@@ -49,6 +52,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   const [fInst, setFInst] = useState("");
   const [fItem, setFItem] = useState("");
   const [fRisk, setFRisk] = useState("");
+  const [fZsr, setFZsr] = useState("");   // 재고0 원인 필터
   const [fMin, setFMin] = useState<Record<string, string>>({});
   const [showNonMed, setShowNonMed] = useState(false);  // 비의료품(판촉·홍보물) 기본 숨김
   const [showFamCovered, setShowFamCovered] = useState(false);  // family에 재고 있는 '긴급부족' 오탐 기본 숨김
@@ -83,7 +87,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
     />
   );
 
-  const anyFilter = fInst || fItem || fRisk || Object.values(fMin).some((v) => v !== "");
+  const anyFilter = fInst || fItem || fRisk || fZsr || Object.values(fMin).some((v) => v !== "");
 
   const rows = useMemo(() => {
     let r = rawItems.filter((x) => {
@@ -95,6 +99,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       if (fInst && !`${x.institutionName ?? ""} ${x.sido ?? ""} ${x.sigungu ?? ""}`.toLowerCase().includes(fInst.toLowerCase())) return false;
       if (fItem && !`${x.standardName ?? ""} ${x.standardCode ?? ""}`.toLowerCase().includes(fItem.toLowerCase())) return false;
       if (fRisk && (x.supplyRiskLevel ?? "NORMAL") !== fRisk) return false;
+      if (fZsr && x.zeroStockReason !== fZsr) return false;
       for (const [k, v] of Object.entries(fMin)) {
         if (v !== "" && Number(x[k] ?? 0) < Number(v)) return false;
       }
@@ -105,13 +110,15 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
       r = [...r].sort((a, b) => {
         if (sortKey === "supplyRiskLevel") return ((RISK_RANK[a.supplyRiskLevel] ?? 9) - (RISK_RANK[b.supplyRiskLevel] ?? 9)) * dir;
         if (sortKey === "status") return ((STAT_RANK[a.status] ?? 9) - (STAT_RANK[b.status] ?? 9)) * dir;
+        if (sortKey === "zeroStockReason")
+          return ((ZSR_RANK[a.zeroStockReason] ?? 9) - (ZSR_RANK[b.zeroStockReason] ?? 9)) * dir;
         if (sortKey === "institutionName" || sortKey === "standardName")
           return String(a[sortKey] ?? "").localeCompare(String(b[sortKey] ?? ""), "ko") * dir;
         return (Number(a[sortKey] ?? 0) - Number(b[sortKey] ?? 0)) * dir;
       });
     }
     return r;
-  }, [rawItems, fInst, fItem, fRisk, fMin, sortKey, sortDir, showNonMed, showFamCovered, showNotOperated]);
+  }, [rawItems, fInst, fItem, fRisk, fMin, fZsr, sortKey, sortDir, showNonMed, showFamCovered, showNotOperated]);
 
   const nonMedCount = useMemo(() => rawItems.filter((x) => x.isMedical === false).length, [rawItems]);
   const notOperatedCount = useMemo(
@@ -162,7 +169,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
         )}
         {anyFilter && (
           <button
-            onClick={() => { setFInst(""); setFItem(""); setFRisk(""); setFMin({}); }}
+            onClick={() => { setFInst(""); setFItem(""); setFRisk(""); setFZsr(""); setFMin({}); }}
             className="self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink"
           >
             컬럼 필터 초기화
@@ -190,6 +197,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                   <SortTh label="발주권고" k="orderRecommendation" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
                   <SortTh label="위험" k="supplyRiskLevel" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
                   <SortTh label="상태" k="status" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="원인" k="zeroStockReason" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 </tr>
                 {/* 컬럼별 필터 행 */}
                 <tr className="border-b border-line bg-paper/50">
@@ -212,6 +220,11 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                     </select>
                   </th>
                   <th className="px-2 pb-2 pt-1 align-top" />
+                  <th className="px-2 pb-2 pt-1 align-top">
+                    <select value={fZsr} onChange={(e) => setFZsr(e.target.value)} className="w-full min-w-[86px] rounded border border-line bg-surface px-1.5 py-1 text-xs text-ink outline-none focus:border-accent">
+                      {ZSR_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -242,17 +255,24 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                           {r.familyCodes > 1 && ` · 코드 ${r.familyCodes}개`}
                         </span>
                       )}
-                      {/* 재고 0 원인(ai#32) — 실결품만 실제 발주 대상 */}
-                      {r.status === "CRITICAL" && ZERO_REASON[r.zeroStockReason] && (
-                        <span className={`mt-0.5 block text-[11px] leading-tight ${ZERO_REASON[r.zeroStockReason].c}`}>
+                    </Td>
+                    {/* 재고 0 원인(ai#32) — 정렬 시 실제결품 → 데이터점검 → 미운영 순 */}
+                    <Td>
+                      {ZERO_REASON[r.zeroStockReason] ? (
+                        <span
+                          className={`cursor-help whitespace-nowrap text-xs ${ZERO_REASON[r.zeroStockReason].c}`}
+                          title={ZERO_REASON[r.zeroStockReason].t}
+                        >
                           {ZERO_REASON[r.zeroStockReason].l}
                         </span>
+                      ) : (
+                        <span className="text-xs text-ink-faint">—</span>
                       )}
                     </Td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-ink-faint">컬럼 필터에 맞는 행이 없습니다.</td></tr>
+                  <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-ink-faint">컬럼 필터에 맞는 행이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
