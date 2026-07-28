@@ -19,10 +19,15 @@ export const STATUS_LABEL: Record<string, string> = {
   WATCH: "주의",
   BELOW_ROP: "재주문점 미달",
   CRITICAL: "긴급 부족",
+  // 해당 기관이 취급하지 않거나(NOT_OPERATED) 데이터가 누락된(DATA_MISSING) 품목.
+  // 재고가 0 이지만 결품이 아니므로 판정·발주 대상에서 뺀다. 사유는 zero_stock_reason 참조.
+  EXCLUDED: "판정 제외",
 };
 
 export const STATUS_CLASS: Record<string, string> = {
   OK: "bg-ok-soft text-ok border-transparent",
+  // 경보가 아니라 '대상 아님' 이므로 중립 톤으로 둔다(정상=녹색과도 구분).
+  EXCLUDED: "bg-paper text-ink-muted border-line",
   WATCH: "bg-caution-soft text-caution border-transparent",
   BELOW_ROP: "bg-warn-soft text-warn border-transparent",
   CRITICAL: "bg-crit-soft text-crit border-transparent",
