@@ -81,7 +81,7 @@ function Forecast() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-serif text-2xl font-bold text-ink">재고 공급 부족 예상</h1>
+        <h1 className="text-[19px] font-semibold text-ink">재고 공급 부족 예상</h1>
         <p className="mt-1.5 max-w-3xl text-sm text-ink-muted">
           <b className="text-ink">예측 수요율</b>(직전 3개월 실적 기반)로 소진 시점을 추정하고,
           <b className="text-ink"> 리드타임</b>과 비교해 발주 시급도를 판정합니다.
@@ -198,7 +198,7 @@ function Forecast() {
                 </dl>
                 <div className="mt-4 flex items-center justify-between rounded-lg bg-accent-soft px-4 py-3">
                   <span className="text-sm font-semibold text-accent-dark">권고 발주량</span>
-                  <span className="font-serif text-xl font-bold tabular-nums text-accent-dark">
+                  <span className="text-xl font-bold tabular-nums text-accent-dark">
                     {num(sel.orderRecommendation)} <span className="text-xs font-normal">{sel.uom}</span>
                   </span>
                 </div>
