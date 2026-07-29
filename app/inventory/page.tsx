@@ -34,6 +34,25 @@ const muSource = (r: any) =>
   : r.mu != null ? "원본 평균(보정 없음)"
   : "수요 기록 없음";
 
+// ROP 는 백엔드가 이미 계산해 내려준 값이고, 그때 쓴 μ 는 화면이 곡선에 쓰는
+// μ(예측·절단보정 폴백)와 다를 수 있다. 실제로 다르다 — 예: ROP 2,843.5 ·
+// SS 1,817.7 · L 16.2 인 행의 역산 μ 는 63.3 인데 화면 표시 μ 는 70.18 이었다.
+// 그래서 분해식은 ROP 에서 역산한 μ 로 세운다. 그래야 식이 실제로 맞아떨어진다.
+const muFromRop = (r: any) => {
+  const L = Number(r.leadTimeUsed ?? 0);
+  if (!(L > 0)) return null;
+  const v = (Number(r.ROP ?? 0) - Number(r.SS ?? 0)) / L;
+  return Number.isFinite(v) ? v : null;
+};
+// 두 μ 가 눈에 띄게 벌어지면 곡선과 ROP 가 서로 다른 기준이라는 뜻이라 알린다.
+const muDiverges = (r: any) => {
+  const a = muFromRop(r), b = detailMu(r);
+  if (a == null || !(b > 0) || !(a > 0)) return false;
+  return Math.abs(a - b) / Math.max(a, b) > 0.05;
+};
+// 리드타임이 정수가 아니면 소수 한 자리까지 — 16.2 를 '16일'로 적으면 식이 안 맞아 보인다.
+const fmtL = (L: number) => (Number.isInteger(L) ? String(L) : L.toFixed(1));
+
 // 정렬 가능한 헤더 셀
 function SortTh({ label, k, sortKey, dir, onSort, align = "left" }: {
   label: string; k: string; sortKey: string | null; dir: "asc" | "desc";
@@ -387,29 +406,45 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                   {open && (
                     <tr className="bg-accent-soft/40">
                       <td colSpan={colCount} className="px-4 py-4">
-                        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                          <div>
+                        <div className="grid gap-5 lg:grid-cols-2">
+                          <div className="min-w-0">
                             <div className="mb-2 text-2xs font-semibold uppercase tracking-wide text-ink-faint">산출 근거</div>
                             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
-                              <dt className="text-ink-muted">예측 일수요 μ</dt>
+                              <dt className="text-ink-muted">ROP 산정 μ</dt>
                               <dd className="font-mono tabular-nums text-ink">
-                                {detailMu(r).toFixed(2)} {r.uom ?? ""}
-                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">{muSource(r)}</span>
+                                {muFromRop(r) != null ? `${muFromRop(r)!.toFixed(2)} ${r.uom ?? ""}` : "—"}
+                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">ROP·SS 역산</span>
                               </dd>
                               <dt className="text-ink-muted">리드타임 L</dt>
-                              <dd className="font-mono tabular-nums text-ink">{Math.round(Number(r.leadTimeUsed ?? 0))}일</dd>
+                              <dd className="font-mono tabular-nums text-ink">{fmtL(Number(r.leadTimeUsed ?? 0))}일</dd>
                               <dt className="text-ink-muted">안전재고 SS</dt>
                               <dd className="font-mono tabular-nums text-ink">{num(Math.round(r.SS ?? 0))}</dd>
                               <dt className="text-ink-muted">재주문점 ROP</dt>
                               <dd className="font-mono tabular-nums text-ink">
                                 {num(Math.round(r.ROP ?? 0))}
-                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">
-                                  = μ×L({(detailMu(r) * Number(r.leadTimeUsed ?? 0)).toFixed(0)}) + SS({num(Math.round(r.SS ?? 0))})
-                                </span>
+                                {muFromRop(r) != null && (
+                                  <span className="ml-1.5 font-sans text-2xs text-ink-faint">
+                                    = μ×L({num(Math.round(muFromRop(r)! * Number(r.leadTimeUsed ?? 0)))}) + SS({num(Math.round(r.SS ?? 0))})
+                                  </span>
+                                )}
                               </dd>
                               <dt className="text-ink-muted">현재 가용</dt>
                               <dd className="font-mono tabular-nums text-ink">{num(r.available)}</dd>
+                              <dt className="text-ink-muted">곡선 기준 μ</dt>
+                              <dd className="font-mono tabular-nums text-ink">
+                                {detailMu(r).toFixed(2)}
+                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">{muSource(r)}</span>
+                              </dd>
                             </dl>
+                            {/* 두 μ 가 벌어지면 오른쪽 곡선과 ROP 가 서로 다른 기준이라는 뜻이다.
+                                조용히 숨기면 담당자가 둘을 같은 근거로 오해한다. */}
+                            {muDiverges(r) && (
+                              <p className="mt-2 border-l-[3px] border-l-caution pl-2 text-2xs leading-snug text-ink-muted">
+                                ROP 는 저장된 값({muFromRop(r)!.toFixed(2)}/일 기준)이고 오른쪽 곡선은
+                                최신 수요({detailMu(r).toFixed(2)}/일)로 그립니다 — 기준이 달라 소진 시점과
+                                발주 시점이 어긋나 보일 수 있습니다.
+                              </p>
+                            )}
                             <div className="mt-3 flex items-baseline gap-2 border-t border-line pt-3">
                               <span className="text-[13px] text-ink-muted">권고 발주량</span>
                               <span className="font-mono text-lg font-semibold tabular-nums text-accent-dark">
@@ -423,7 +458,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                               </span>
                             </div>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="mb-2 text-2xs font-semibold uppercase tracking-wide text-ink-faint">소진 예상</div>
                             <DepletionChart
                               available={Number(r.available ?? 0)}
