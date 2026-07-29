@@ -64,7 +64,7 @@ function UploadCard({ onDone }: { onDone: () => void }) {
             ref={fileRef}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink shadow-card file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white"
+            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -73,13 +73,13 @@ function UploadCard({ onDone }: { onDone: () => void }) {
             value={vendor}
             onChange={(e) => setVendor(e.target.value)}
             placeholder="예: OO의약품"
-            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink shadow-card placeholder:text-ink-faint"
+            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint"
           />
         </label>
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white shadow-card transition-colors hover:bg-accent-dark disabled:opacity-60"
+          className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
         >
           {busy ? "업로드 중…" : "업로드"}
         </button>

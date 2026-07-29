@@ -10,7 +10,7 @@ export function Card({
   title,
   children,
   className = "",
-  bodyClassName = "p-5",
+  bodyClassName = "p-4",
   action,
 }: {
   title?: string;
@@ -20,12 +20,10 @@ export function Card({
   action?: React.ReactNode;
 }) {
   return (
-    <section
-      className={`rounded-xl border border-line bg-surface shadow-card ${className}`}
-    >
+    <section className={`border border-line bg-surface ${className}`}>
       {title && (
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-          <h2 className="font-serif text-[15px] font-bold text-ink">{title}</h2>
+        <header className="flex items-center justify-between gap-3 border-b border-line bg-paper px-4 py-2">
+          <h2 className="text-[13.5px] font-semibold text-ink">{title}</h2>
           {action}
         </header>
       )}
@@ -49,10 +47,10 @@ export function SectionHeader({
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <h2 className="flex items-center gap-2 font-serif text-lg font-bold text-ink">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           {title}
           {count != null && (
-            <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-semibold tabular-nums text-ink-muted">
+            <span className="rounded-sm bg-paper px-2 py-0.5 text-xs font-semibold tabular-nums text-ink-muted">
               {count}
             </span>
           )}
@@ -64,12 +62,14 @@ export function SectionHeader({
   );
 }
 
-const KPI_TONE: Record<string, { v: string; ring: string; dot: string }> = {
-  default: { v: "text-ink", ring: "", dot: "bg-ink-faint" },
-  accent: { v: "text-accent-dark", ring: "", dot: "bg-accent" },
-  danger: { v: "text-crit", ring: "ring-crit/20", dot: "bg-crit" },
-  warn: { v: "text-warn", ring: "ring-warn/20", dot: "bg-warn" },
-  good: { v: "text-ok", ring: "ring-ok/20", dot: "bg-ok" },
+// 지표는 색점·링 없이 숫자 색만으로 구분한다. 점과 테두리 링을 얹으면
+// 지표 6개가 나란히 놓였을 때 장식이 데이터보다 먼저 읽힌다.
+const KPI_TONE: Record<string, string> = {
+  default: "text-ink",
+  accent: "text-accent-dark",
+  danger: "text-crit",
+  warn: "text-warn",
+  good: "text-ok",
 };
 
 /** 대시보드 핵심 지표 카드. href 주면 클릭 가능(드릴다운). */
@@ -86,30 +86,22 @@ export function Kpi({
   tone?: "default" | "accent" | "danger" | "warn" | "good";
   href?: string;
 }) {
-  const t = KPI_TONE[tone];
+  const tone_ = KPI_TONE[tone] ?? KPI_TONE.default;
   const inner = (
     <>
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
-        <span className="text-xs font-medium tracking-wide text-ink-muted">{label}</span>
-      </div>
-      <div className={`mt-2 font-serif text-[28px] font-bold leading-none lining-nums tabular-nums ${t.v}`}>
+      <div className="text-xs text-ink-muted">{label}</div>
+      <div className={`mt-1 font-mono text-[26px] font-medium leading-none tabular-nums ${tone_}`}>
         {value}
       </div>
-      {hint && <div className="mt-1.5 text-xs text-ink-faint">{hint}</div>}
+      {hint && <div className="mt-1.5 text-2xs leading-snug text-ink-faint">{hint}</div>}
     </>
   );
-  const cls = `block rounded-xl border border-line bg-surface p-4 shadow-card ${t.ring ? `ring-1 ${t.ring}` : ""}`;
+  // 카드가 아니라 '구획'이다 — 격자 안에서 선으로만 나뉜다.
+  const cls = "block bg-surface px-4 py-3";
   if (href) {
     return (
-      <Link href={href} className={`${cls} group relative transition-shadow hover:shadow-md`}>
+      <Link href={href} className={`${cls} transition-colors hover:bg-accent-soft`}>
         {inner}
-        <svg
-          className="absolute right-3 top-3 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
-          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-        >
-          <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
       </Link>
     );
   }
@@ -134,12 +126,12 @@ export function Stat({
     good: "text-ok",
   }[tone];
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
-      <div className="text-xs font-medium tracking-wide text-ink-muted">{label}</div>
-      <div className={`mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums ${toneClass}`}>
+    <div className="border border-line bg-surface px-4 py-3">
+      <div className="text-xs text-ink-muted">{label}</div>
+      <div className={`mt-1 font-mono text-[24px] font-medium leading-none tabular-nums ${toneClass}`}>
         {value}
       </div>
-      {sub && <div className="mt-1.5 text-xs text-ink-faint">{sub}</div>}
+      {sub && <div className="mt-1.5 text-2xs leading-snug text-ink-faint">{sub}</div>}
     </div>
   );
 }
@@ -183,22 +175,23 @@ export function Tabs({
   onChange: (key: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1 shadow-card">
+    // 알약형 토글 대신 문서 탭. 선택된 탭만 아래 선을 지워 본문과 이어지게 한다.
+    <div className="flex flex-wrap items-end gap-0 border-b border-line">
       {tabs.map((t) => {
         const on = t.key === active;
         return (
           <button
             key={t.key}
             onClick={() => onChange(t.key)}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
-              on ? "bg-accent text-white shadow-card" : "text-ink-muted hover:bg-paper hover:text-ink"
+            className={`-mb-px border-b-2 px-4 py-2 text-[13.5px] transition-colors ${
+              on
+                ? "border-b-accent font-semibold text-accent-dark"
+                : "border-b-transparent text-ink-muted hover:text-ink"
             }`}
           >
             {t.label}
             {t.count != null && (
-              <span className={`rounded-full px-1.5 text-xs tabular-nums ${on ? "bg-white/20" : "bg-paper text-ink-faint"}`}>
-                {t.count}
-              </span>
+              <span className="ml-1.5 font-mono text-xs tabular-nums text-ink-faint">{t.count}</span>
             )}
           </button>
         );
@@ -222,7 +215,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 const CONTROL =
-  "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink shadow-card outline-none focus:border-accent disabled:bg-paper disabled:text-ink-faint";
+  "border border-line bg-surface px-2.5 py-1.5 text-[13.5px] text-ink outline-none focus:border-accent disabled:bg-paper disabled:text-ink-faint";
 
 export function Select({ className = "", ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={`${CONTROL} ${className}`} {...p} />;
@@ -232,11 +225,13 @@ export function TextInput({ className = "", ...p }: React.InputHTMLAttributes<HT
   return <input className={`${CONTROL} placeholder:text-ink-faint ${className}`} {...p} />;
 }
 
+// 배지는 알약이 아니라 '왼쪽 굵은 선 + 글자'다. 표에 수십 개가 깔려도
+// 배경색이 데이터를 덮지 않고, 흑백 인쇄나 색각 이상에서도 위치로 구분된다.
+const MARK = "inline-block border-l-[3px] pl-1.5 text-xs font-medium leading-tight";
+
 export function RiskBadge({ level }: { level: string }) {
   return (
-    <span
-      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${RISK_CLASS[level] ?? "border-line bg-paper text-ink-muted"}`}
-    >
+    <span className={`${MARK} ${RISK_CLASS[level] ?? "border-l-line text-ink-muted"}`}>
       {RISK_LABEL[level] ?? level}
     </span>
   );
@@ -244,9 +239,7 @@ export function RiskBadge({ level }: { level: string }) {
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <span
-      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${STATUS_CLASS[status] ?? "border-line bg-paper text-ink-muted"}`}
-    >
+    <span className={`${MARK} ${STATUS_CLASS[status] ?? "border-l-line text-ink-muted"}`}>
       {STATUS_LABEL[status] ?? status}
     </span>
   );
@@ -254,14 +247,14 @@ export function StatusBadge({ status }: { status: string }) {
 
 export function Th({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={`whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-faint ${className}`}>
+    <th className={`whitespace-nowrap px-3 py-1.5 text-left text-2xs font-semibold text-ink-muted ${className}`}>
       {children}
     </th>
   );
 }
 
 export function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
-  return <td className={`whitespace-nowrap px-3 py-2.5 text-sm tabular-nums text-ink ${className}`}>{children}</td>;
+  return <td className={`whitespace-nowrap px-3 py-1.5 text-[13.5px] tabular-nums text-ink ${className}`}>{children}</td>;
 }
 
 export function State({ loading, error }: { loading: boolean; error: string | null }) {
@@ -293,7 +286,7 @@ export function SkeletonStatGrid({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-line bg-surface p-4 shadow-card">
+        <div key={i} className="rounded-sm border border-line bg-surface p-4">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="mt-2.5 h-6 w-20" />
         </div>
@@ -323,7 +316,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2.5 px-4 py-14 text-center">
-      <div className="grid h-11 w-11 place-items-center rounded-full bg-paper text-ink-faint">
+      <div className="grid h-11 w-11 place-items-center rounded-sm bg-paper text-ink-faint">
         {icon ?? (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
             <circle cx="11" cy="11" r="7" />
@@ -341,7 +334,7 @@ export function PageTitle({ title, desc, action }: { title: string; desc?: strin
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-balance font-serif text-2xl font-bold text-ink">{title}</h1>
+        <h1 className="text-balance text-[19px] font-semibold text-ink">{title}</h1>
         {desc && <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">{desc}</p>}
       </div>
       {action}
