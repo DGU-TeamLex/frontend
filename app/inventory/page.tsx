@@ -1,12 +1,13 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApi } from "../lib/api";
-import { num } from "../lib/format";
+import { num, RISK_LABEL, STATUS_LABEL } from "../lib/format";
 import {
   Card, Toolbar, Field, Select, TextInput, RiskBadge, StatusBadge,
   Td, State, SkeletonTable, EmptyState, PageTitle,
 } from "../components/ui";
+import DepletionChart from "../components/DepletionChart";
 import RequireRole from "../components/RequireRole";
 
 // 정렬 순위 (범주형)
@@ -23,6 +24,15 @@ const ZERO_REASON: Record<string, { l: string; t: string; c: string }> = {
   DATA_MISSING: { l: "데이터 점검", t: "재고가 없는데 출고가 발생(출고량 > 이전재고+입고). 재고 기재 누락 가능성.", c: "text-warn" },
   NOT_OPERATED: { l: "미운영", t: "전 기간 출고 이력이 없음 — 운영하지 않는 품목이라 발주 대상 아님.", c: "text-ink-faint" },
 };
+
+// 예측 일수요는 대시보드와 같은 순서로 폴백한다(muForecast → muCorrected → mu).
+// 어느 값이 쓰였는지 화면에 밝혀야 담당자가 숫자를 신뢰할지 판단할 수 있다.
+const detailMu = (r: any) => Number(r.muForecast ?? r.muCorrected ?? r.mu ?? 0);
+const muSource = (r: any) =>
+  r.muForecast != null ? "직전 3개월 예측"
+  : r.muCorrected != null ? "절단보정값(예측 없음)"
+  : r.mu != null ? "원본 평균(보정 없음)"
+  : "수요 기록 없음";
 
 // 정렬 가능한 헤더 셀
 function SortTh({ label, k, sortKey, dir, onSort, align = "left" }: {
@@ -44,21 +54,43 @@ function SortTh({ label, k, sortKey, dir, onSort, align = "left" }: {
 }
 
 function PolicyTable({ initInstitution }: { initInstitution: string }) {
+  // 화면 상태를 URL 에서 복원한다. 담당자가 조건을 잡아놓고 새로고침하거나
+  // 링크를 공유하면 그대로 열려야 한다(종전에는 전부 초기화됐다).
+  const sp = useSearchParams();
+  const q0 = (k: string, d = "") => sp.get(k) ?? d;
+  const b0 = (k: string) => sp.get(k) === "1";
+
   const [institution, setInstitution] = useState(initInstitution);
-  const [status, setStatus] = useState("");          // 서버측 필터(전국 전체 기준)
+  const [status, setStatus] = useState(q0("status"));  // 서버측 필터(전국 전체 기준)
   useEffect(() => setInstitution(initInstitution), [initInstitution]);
 
   // 컬럼별 클라이언트 필터 (불러온 목록 내에서 적용)
-  const [fInst, setFInst] = useState("");
-  const [fItem, setFItem] = useState("");
-  const [fRisk, setFRisk] = useState("");
-  const [fZsr, setFZsr] = useState("");   // 재고0 원인 필터
+  const [fInst, setFInst] = useState(q0("inst"));
+  const [fItem, setFItem] = useState(q0("item"));
+  const [fRisk, setFRisk] = useState(q0("risk"));
+  const [fZsr, setFZsr] = useState(q0("zsr"));   // 재고0 원인 필터
   const [fMin, setFMin] = useState<Record<string, string>>({});
-  const [showNonMed, setShowNonMed] = useState(false);  // 비의료품(판촉·홍보물) 기본 숨김
-  const [showFamCovered, setShowFamCovered] = useState(false);  // family에 재고 있는 '긴급부족' 오탐 기본 숨김
-  const [showNotOperated, setShowNotOperated] = useState(false);  // 미운영(출고이력 전혀 없음) 재고0 기본 숨김
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [showNonMed, setShowNonMed] = useState(b0("nonmed"));        // 비의료품 기본 숨김
+  const [showFamCovered, setShowFamCovered] = useState(b0("famcov")); // 품목군 재고보유분 기본 숨김
+  const [showNotOperated, setShowNotOperated] = useState(b0("notop")); // 미운영 기본 숨김
+  const [sortKey, setSortKey] = useState<string | null>(sp.get("sort"));
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(q0("dir") === "desc" ? "desc" : "asc");
+  const [openKey, setOpenKey] = useState<string | null>(null);  // 펼쳐진 행
+
+  // 상태 → URL. history 를 더럽히지 않도록 replaceState 로 덮어쓴다.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    const put = (k: string, v: string) => { if (v) p.set(k, v); };
+    put("institution", institution);
+    put("status", status);
+    put("inst", fInst); put("item", fItem); put("risk", fRisk); put("zsr", fZsr);
+    if (showNonMed) p.set("nonmed", "1");
+    if (showFamCovered) p.set("famcov", "1");
+    if (showNotOperated) p.set("notop", "1");
+    if (sortKey) { p.set("sort", sortKey); p.set("dir", sortDir); }
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [institution, status, fInst, fItem, fRisk, fZsr, showNonMed, showFamCovered, showNotOperated, sortKey, sortDir]);
 
   const path = useMemo(() => {
     const qs = new URLSearchParams();
@@ -88,6 +120,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
   );
 
   const anyFilter = fInst || fItem || fRisk || fZsr || Object.values(fMin).some((v) => v !== "");
+  const colCount = institution ? 9 : 10;  // 기관 컬럼은 기관 선택 시 숨는다
 
   const rows = useMemo(() => {
     let r = rawItems.filter((x) => {
@@ -130,6 +163,51 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
     [rawItems],
   );
 
+  // 기본 제외 항목을 한 곳에 모은다. 화면 상단에서 '무엇이 왜 빠졌는지'를
+  // 한 줄로 보여주고, 각 항목을 눌러 되돌릴 수 있게 한다.
+  const EXCLUSIONS = [
+    {
+      key: "nonmed", label: "비의료품", count: nonMedCount, on: showNonMed,
+      why: "판촉·홍보물·문구류 등 예측 대상이 아닌 품목",
+      toggle: () => setShowNonMed((v) => !v),
+    },
+    {
+      key: "famcov", label: "품목군 재고보유", count: famCoveredCount, on: showFamCovered,
+      why: "같은 기관·품목군에 재고가 남아 있는데 이 코드만 0이라 긴급부족으로 뜬 항목",
+      toggle: () => setShowFamCovered((v) => !v),
+    },
+    {
+      key: "notop", label: "미운영", count: notOperatedCount, on: showNotOperated,
+      why: "전 기간 출고 이력이 없어 재고만 0인 품목 — 발주 대상이 아님",
+      toggle: () => setShowNotOperated((v) => !v),
+    },
+  ];
+  const hiddenTotal = EXCLUSIONS.reduce((s, x) => s + (x.on ? 0 : x.count), 0);
+  const anyExclusionOn = showNonMed || showFamCovered || showNotOperated;
+  const showEverything = () => { setShowNonMed(true); setShowFamCovered(true); setShowNotOperated(true); };
+
+  // 화면에 보이는 것(필터·정렬 반영)을 그대로 CSV 로. 담당자가 발주서를 만들 때
+  // 표를 다시 손으로 옮겨적던 단계를 없앤다. 엑셀 한글 깨짐 방지로 BOM 을 붙인다.
+  function exportCsv() {
+    const head = ["기관", "시도", "시군구", "물품코드", "품목명", "현재고", "가용", "SS", "ROP", "발주권고", "위험", "상태", "재고0원인"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const body = rows.map((r) => [
+      r.institutionName, r.sido, r.sigungu, r.standardCode, r.standardName,
+      r.onHand, r.available, Math.round(r.SS ?? 0), Math.round(r.ROP ?? 0), r.orderRecommendation,
+      RISK_LABEL[r.supplyRiskLevel] ?? r.supplyRiskLevel ?? "",
+      STATUS_LABEL[r.status] ?? r.status ?? "",
+      ZERO_REASON[r.zeroStockReason]?.l ?? "",
+    ].map(esc).join(","));
+    const blob = new Blob(["﻿" + [head.map(esc).join(","), ...body].join("\r\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `재고발주_${instName ?? "전국"}_${rows.length}건.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div>
       <Toolbar className="mb-4">
@@ -138,27 +216,6 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
             {STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </Select>
         </Field>
-        <label className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink">
-          <input type="checkbox" checked={showNonMed} onChange={(e) => setShowNonMed(e.target.checked)} className="accent-accent" />
-          비의료품 포함
-          {nonMedCount > 0 && !showNonMed && <span className="text-xs text-ink-faint">({num(nonMedCount)}건 숨김)</span>}
-        </label>
-        <label
-          className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink"
-          title="같은 기관·같은 품목군에 재고가 남아 있는데 이 코드만 0이라 '긴급 부족'으로 뜨는 항목"
-        >
-          <input type="checkbox" checked={showFamCovered} onChange={(e) => setShowFamCovered(e.target.checked)} className="accent-accent" />
-          품목군 재고보유분 포함
-          {famCoveredCount > 0 && !showFamCovered && <span className="text-xs text-ink-faint">({num(famCoveredCount)}건 숨김)</span>}
-        </label>
-        <label
-          className="flex cursor-pointer select-none items-center gap-2 self-end rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-muted hover:text-ink"
-          title="전 기간 출고 이력이 없어 재고만 0인 품목 — 운영하지 않는 품목이라 발주 대상이 아님"
-        >
-          <input type="checkbox" checked={showNotOperated} onChange={(e) => setShowNotOperated(e.target.checked)} className="accent-accent" />
-          미운영 품목 포함
-          {notOperatedCount > 0 && !showNotOperated && <span className="text-xs text-ink-faint">({num(notOperatedCount)}건 숨김)</span>}
-        </label>
         {institution && (
           <button
             onClick={() => setInstitution("")}
@@ -175,7 +232,48 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
             컬럼 필터 초기화
           </button>
         )}
+        {rows.length > 0 && (
+          <button
+            onClick={exportCsv}
+            title="지금 화면에 보이는 행을 그대로 내려받습니다"
+            className="ml-auto self-end border border-line bg-surface px-3 py-2 text-sm font-medium text-ink-muted hover:border-accent hover:text-accent-dark"
+          >
+            CSV 내려받기 <span className="font-mono text-xs tabular-nums">{num(rows.length)}</span>
+          </button>
+        )}
       </Toolbar>
+
+      {/* 제외 현황 — 기본값이 데이터를 숨기고 있다는 사실을 한 줄로 드러낸다.
+          종전에는 체크박스 3개가 툴바에 흩어져 있어, 담당자가 '전체를 보고 있다'고
+          오해하기 쉬웠다. 무엇이 왜 빠졌는지와 되돌리는 방법을 같은 줄에 둔다. */}
+      {(hiddenTotal > 0 || anyExclusionOn) && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border border-line bg-surface px-3 py-2 text-[13px]">
+          <span className="font-medium text-ink">
+            {hiddenTotal > 0 ? `${num(hiddenTotal)}건 제외됨` : "전체 표시 중"}
+          </span>
+          {EXCLUSIONS.map((x) =>
+            x.count > 0 ? (
+              <button
+                key={x.key}
+                onClick={x.toggle}
+                title={x.why}
+                className={`border-l-[3px] pl-1.5 transition-colors ${
+                  x.on ? "border-l-accent text-accent-dark" : "border-l-line text-ink-muted hover:text-ink"
+                }`}
+              >
+                {x.label} <span className="font-mono tabular-nums">{num(x.count)}</span>
+                {x.on && <span className="ml-1 text-2xs">표시중</span>}
+              </button>
+            ) : null,
+          )}
+          <button
+            onClick={showEverything}
+            className="ml-auto border border-line px-2 py-0.5 text-ink-muted hover:text-ink"
+          >
+            모두 표시
+          </button>
+        </div>
+      )}
 
       <Card bodyClassName="p-0">
         {inv.loading && <div className="p-4"><SkeletonTable cols={8} rows={12} /></div>}
@@ -184,10 +282,10 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
           <EmptyState title="해당 조건의 재고가 없습니다" desc="상태 필터를 바꿔보세요." />
         )}
         {rawItems.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="max-h-[calc(100vh-16rem)] overflow-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-line">
+              <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_theme(colors.line)]">
+                <tr className="border-b border-line bg-surface">
                   {!institution && <SortTh label="기관" k="institutionName" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />}
                   <SortTh label="품목" k="standardName" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
                   <SortTh label="현재고" k="onHand" sortKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
@@ -200,7 +298,7 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                   <SortTh label="원인" k="zeroStockReason" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 </tr>
                 {/* 컬럼별 필터 행 */}
-                <tr className="border-b border-line bg-paper/50">
+                <tr className="border-b border-line bg-paper">
                   {!institution && (
                     <th className="px-2 pb-2 pt-1 align-top">
                       <TextInput value={fInst} onChange={(e) => setFInst(e.target.value)} placeholder="기관·지역" className="w-full min-w-[110px] !py-1 !text-xs" />
@@ -228,8 +326,15 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {rows.map((r, i) => (
-                  <tr key={i} className={`transition-colors hover:bg-paper ${r.status === "CRITICAL" ? "bg-crit-soft/30" : ""}`}>
+                {rows.map((r, i) => {
+                  const rowKey = `${r.institutionCode ?? ""}:${r.standardCode ?? i}`;
+                  const open = openKey === rowKey;
+                  return (
+                  <Fragment key={rowKey}>
+                  <tr
+                    onClick={() => setOpenKey(open ? null : rowKey)}
+                    className={`cursor-pointer transition-colors hover:bg-paper ${open ? "bg-accent-soft" : r.status === "CRITICAL" ? "bg-crit-soft/30" : ""}`}
+                  >
                     {!institution && (
                       <Td className="max-w-[160px]">
                         <span className="block truncate text-ink-muted">{r.institutionName}</span>
@@ -237,8 +342,15 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                       </Td>
                     )}
                     <Td className="max-w-[220px]">
-                      <span className="block truncate font-medium text-ink">{r.standardName}</span>
-                      <span className="font-mono text-xs text-ink-faint">{r.standardCode}</span>
+                      <span className="flex items-start gap-1.5">
+                        {/* 펼침 표시 — 행이 눌린다는 걸 알려주는 유일한 단서다 */}
+                        <span className={`mt-0.5 select-none text-[9px] leading-none text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+                        <span className="min-w-0">
+                          {/* 펼친 행은 이름을 자르지 않는다 */}
+                          <span className={`block font-medium text-ink ${open ? "whitespace-normal break-words" : "truncate"}`}>{r.standardName}</span>
+                          <span className="font-mono text-xs text-ink-faint">{r.standardCode}</span>
+                        </span>
+                      </span>
                     </Td>
                     <Td className="text-right">{num(r.onHand)}</Td>
                     <Td className="text-right font-semibold">{num(r.available)}</Td>
@@ -270,9 +382,67 @@ function PolicyTable({ initInstitution }: { initInstitution: string }) {
                       )}
                     </Td>
                   </tr>
-                ))}
+                  {/* 펼침 상세 — 표는 결과 숫자만 보여준다. 담당자가 발주량을 믿고
+                      결재를 올리려면 '이 ROP 가 어디서 나왔는지'가 같은 자리에 있어야 한다. */}
+                  {open && (
+                    <tr className="bg-accent-soft/40">
+                      <td colSpan={colCount} className="px-4 py-4">
+                        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                          <div>
+                            <div className="mb-2 text-2xs font-semibold uppercase tracking-wide text-ink-faint">산출 근거</div>
+                            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
+                              <dt className="text-ink-muted">예측 일수요 μ</dt>
+                              <dd className="font-mono tabular-nums text-ink">
+                                {detailMu(r).toFixed(2)} {r.uom ?? ""}
+                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">{muSource(r)}</span>
+                              </dd>
+                              <dt className="text-ink-muted">리드타임 L</dt>
+                              <dd className="font-mono tabular-nums text-ink">{Math.round(Number(r.leadTimeUsed ?? 0))}일</dd>
+                              <dt className="text-ink-muted">안전재고 SS</dt>
+                              <dd className="font-mono tabular-nums text-ink">{num(Math.round(r.SS ?? 0))}</dd>
+                              <dt className="text-ink-muted">재주문점 ROP</dt>
+                              <dd className="font-mono tabular-nums text-ink">
+                                {num(Math.round(r.ROP ?? 0))}
+                                <span className="ml-1.5 font-sans text-2xs text-ink-faint">
+                                  = μ×L({(detailMu(r) * Number(r.leadTimeUsed ?? 0)).toFixed(0)}) + SS({num(Math.round(r.SS ?? 0))})
+                                </span>
+                              </dd>
+                              <dt className="text-ink-muted">현재 가용</dt>
+                              <dd className="font-mono tabular-nums text-ink">{num(r.available)}</dd>
+                            </dl>
+                            <div className="mt-3 flex items-baseline gap-2 border-t border-line pt-3">
+                              <span className="text-[13px] text-ink-muted">권고 발주량</span>
+                              <span className="font-mono text-lg font-semibold tabular-nums text-accent-dark">
+                                {num(r.orderRecommendation)}
+                              </span>
+                              <span className="text-2xs text-ink-faint">{r.uom}</span>
+                              <span className="ml-auto text-2xs text-ink-faint">
+                                {Number(r.available ?? 0) <= Number(r.ROP ?? 0)
+                                  ? "가용 ≤ ROP → 발주 시점"
+                                  : "가용 > ROP → 아직 발주 시점 아님"}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-2 text-2xs font-semibold uppercase tracking-wide text-ink-faint">소진 예상</div>
+                            <DepletionChart
+                              available={Number(r.available ?? 0)}
+                              mu={detailMu(r)}
+                              SS={Number(r.SS ?? 0)}
+                              ROP={Number(r.ROP ?? 0)}
+                              leadTime={Number(r.leadTimeUsed ?? 0)}
+                              uom={r.uom ?? ""}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
                 {rows.length === 0 && (
-                  <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-ink-faint">컬럼 필터에 맞는 행이 없습니다.</td></tr>
+                  <tr><td colSpan={colCount} className="px-5 py-10 text-center text-sm text-ink-faint">컬럼 필터에 맞는 행이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
