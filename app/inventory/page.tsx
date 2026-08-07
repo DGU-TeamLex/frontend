@@ -12,9 +12,10 @@ import RequireRole from "../components/RequireRole";
 
 // 정렬 순위 (범주형)
 const RISK_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, CAUTION: 2, NORMAL: 3 };
-const STAT_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3 };
+// EXCLUDED(판정 제외)는 경보가 아니므로 정렬에서 정상(OK)보다도 뒤에 둔다.
+const STAT_RANK: Record<string, number> = { CRITICAL: 0, BELOW_ROP: 1, WATCH: 2, OK: 3, EXCLUDED: 4 };
 const RISK_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "심각"], ["WARNING", "경계"], ["CAUTION", "주의"], ["NORMAL", "정상"]];
-const STATUS_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "긴급 부족"], ["BELOW_ROP", "재주문점 미달"], ["WATCH", "주의"], ["OK", "정상"]];
+const STATUS_OPTS: [string, string][] = [["", "전체"], ["CRITICAL", "긴급 부족"], ["BELOW_ROP", "재주문점 미달"], ["WATCH", "주의"], ["OK", "정상"], ["EXCLUDED", "판정 제외"]];
 // 재고 0 원인 (ai#32) — 라벨/색. 실결품만 진짜 발주 대상, 나머지는 참고 표기.
 // 재고0 원인 정렬 순위 — 조치 시급한 순(실제 결품 → 데이터 점검 → 미운영 → 해당없음)
 const ZSR_RANK: Record<string, number> = { TRUE_STOCKOUT: 0, DATA_MISSING: 1, NOT_OPERATED: 2 };
