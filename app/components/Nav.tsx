@@ -3,12 +3,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth, roleHome } from "../lib/auth-context";
 
-// 리디자인 2차: 핵심 3가지(부족 예상·재고량 예상·발주량 예측)를 전면에 두고 메뉴를 3개로 축소.
-// 공급위험(/supply-risk)은 MOCK이라 예측 화면 안 카드로 강등(라우트는 유지), 기관탐색·표준품목검색은
-// 재고·발주 표의 컬럼 필터로 흡수됨.
+// 리디자인 2차: 핵심 3가지(부족 예상·재고량 예상·발주량 예측)를 전면에 두고 메뉴를 축소.
+// 공급위험(/supply-risk)은 MOCK이라 예측 화면 안 카드로 강등(라우트는 유지), 기관탐색은
+// 재고·발주 표의 컬럼 필터로 흡수됨. 표준품목(/items)은 실데이터 17,148종 전용 검색 화면(#19)으로 별도 유지.
 const CENTRAL_LINKS = [
   { href: "/", label: "예측" },
   { href: "/inventory", label: "재고·발주" },
+  { href: "/items", label: "표준품목" },
   { href: "/data", label: "데이터" },
 ];
 
