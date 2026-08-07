@@ -18,9 +18,10 @@
     border-radius: 4px;
   }
 
-  /* 제목용 serif(Gowun Batang) 안에 숫자를 넣을 때 항상 정렬된 lining 숫자로 강제한다
-     (서체를 바꾸더라도 old-style 숫자 들쭉날쭉 문제가 재발하지 않도록 하는 안전장치). */
-  .font-serif {
+  /* 표에 들어가는 숫자는 자릿수가 맞아야 위아래로 비교가 된다.
+     본문 서체(IBM Plex Sans KR)와 수치 서체(IBM Plex Mono) 양쪽에 강제한다. */
+  .tabular-nums,
+  .font-mono {
     font-variant-numeric: lining-nums tabular-nums;
   }
 }
