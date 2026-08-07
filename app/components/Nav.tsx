@@ -9,6 +9,7 @@ import { useAuth, roleHome } from "../lib/auth-context";
 const CENTRAL_LINKS = [
   { href: "/", label: "예측" },
   { href: "/inventory", label: "재고·발주" },
+  { href: "/institutions", label: "기관코드" },
   { href: "/data", label: "데이터" },
 ];
 
