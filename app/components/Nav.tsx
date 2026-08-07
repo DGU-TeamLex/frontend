@@ -3,12 +3,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth, roleHome } from "../lib/auth-context";
 
-// 리디자인 2차: 핵심 3가지(부족 예상·재고량 예상·발주량 예측)를 전면에 두고 메뉴를 3개로 축소.
-// 공급위험(/supply-risk)은 MOCK이라 예측 화면 안 카드로 강등(라우트는 유지), 기관탐색·표준품목검색은
-// 재고·발주 표의 컬럼 필터로 흡수됨.
+// 리디자인 2차: 핵심 3가지(부족 예상·재고량 예상·발주량 예측)를 전면에 두고 메뉴를 축소.
+// 공급위험(/supply-risk)은 MOCK이라 예측 화면 안 카드로 강등(라우트는 유지), 기관탐색은
+// 재고·발주 표의 컬럼 필터로 흡수됨. 표준품목(/items)은 실데이터 17,148종 전용 검색 화면(#19)으로 별도 유지.
 const CENTRAL_LINKS = [
   { href: "/", label: "예측" },
   { href: "/inventory", label: "재고·발주" },
+  { href: "/order-recommendations", label: "발주권고" },
+  { href: "/items", label: "표준품목" },
   { href: "/data", label: "데이터" },
 ];
 
@@ -40,7 +42,7 @@ function AuthStatus() {
           관리자
         </Link>
       )}
-      <span className="hidden items-center gap-1.5 rounded-full bg-paper py-1 pl-1 pr-3 md:flex">
+      <span className="hidden items-center gap-1.5 rounded-sm bg-paper py-1 pl-1 pr-3 md:flex">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-accent-dark">
           {user.name?.[0] ?? "·"}
         </span>
@@ -68,10 +70,10 @@ export default function Nav() {
     <header className="sticky top-0 z-20 border-b border-line bg-paper/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-x-6 px-6 py-3">
         <Link href={brandHref} className="flex shrink-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-[13px] font-bold text-white shadow-card">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-[13px] font-bold text-white">
             WS
           </span>
-          <span className="font-serif text-[16px] font-bold leading-none tracking-tight text-ink">
+          <span className="text-[16px] font-bold leading-none tracking-tight text-ink">
             WeP<span className="text-accent">·</span>Stock
           </span>
         </Link>

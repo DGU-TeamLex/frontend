@@ -124,7 +124,7 @@ export default function DepletionChart({
 
       {hover && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs shadow-card"
+          className="pointer-events-none absolute -translate-x-1/2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs"
           style={{ left: `${(x(hover.day) / W) * 100}%`, top: 0 }}
         >
           <div className="font-semibold text-ink">D+{Math.round(hover.day)}일</div>
