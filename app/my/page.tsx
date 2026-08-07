@@ -36,21 +36,21 @@ function MyInstitution() {
       {data && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+            <div className="rounded-sm border border-line bg-surface p-4">
               <div className="text-xs font-medium text-ink-muted">관리 품목</div>
-              <div className="mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums text-ink">{data.summary.trackedItems}</div>
+              <div className="mt-1.5 text-[26px] font-bold leading-none tabular-nums text-ink">{data.summary.trackedItems}</div>
             </div>
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+            <div className="rounded-sm border border-line bg-surface p-4">
               <div className="text-xs font-medium text-ink-muted">재주문점 미달</div>
-              <div className="mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums text-warn">{data.summary.belowRop}</div>
+              <div className="mt-1.5 text-[26px] font-bold leading-none tabular-nums text-warn">{data.summary.belowRop}</div>
             </div>
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+            <div className="rounded-sm border border-line bg-surface p-4">
               <div className="text-xs font-medium text-ink-muted">발주 필요</div>
-              <div className="mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums text-ink">{data.summary.orderNeeded}</div>
+              <div className="mt-1.5 text-[26px] font-bold leading-none tabular-nums text-ink">{data.summary.orderNeeded}</div>
             </div>
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+            <div className="rounded-sm border border-line bg-surface p-4">
               <div className="text-xs font-medium text-ink-muted">미해결 알림</div>
-              <div className="mt-1.5 font-serif text-[26px] font-bold leading-none lining-nums tabular-nums text-crit">{data.summary.openAlerts}</div>
+              <div className="mt-1.5 text-[26px] font-bold leading-none tabular-nums text-crit">{data.summary.openAlerts}</div>
             </div>
           </div>
 

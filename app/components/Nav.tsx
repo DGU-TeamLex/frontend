@@ -41,7 +41,7 @@ function AuthStatus() {
           관리자
         </Link>
       )}
-      <span className="hidden items-center gap-1.5 rounded-full bg-paper py-1 pl-1 pr-3 md:flex">
+      <span className="hidden items-center gap-1.5 rounded-sm bg-paper py-1 pl-1 pr-3 md:flex">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-accent-dark">
           {user.name?.[0] ?? "·"}
         </span>
@@ -69,10 +69,10 @@ export default function Nav() {
     <header className="sticky top-0 z-20 border-b border-line bg-paper/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-x-6 px-6 py-3">
         <Link href={brandHref} className="flex shrink-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-[13px] font-bold text-white shadow-card">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-[13px] font-bold text-white">
             WS
           </span>
-          <span className="font-serif text-[16px] font-bold leading-none tracking-tight text-ink">
+          <span className="text-[16px] font-bold leading-none tracking-tight text-ink">
             WeP<span className="text-accent">·</span>Stock
           </span>
         </Link>

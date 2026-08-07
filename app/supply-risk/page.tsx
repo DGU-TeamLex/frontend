@@ -18,7 +18,7 @@ function SupplyRisk() {
       {loading && (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-line bg-surface p-5 shadow-card">
+            <div key={i} className="rounded-sm border border-line bg-surface p-5">
               <div className="flex items-center justify-between gap-4">
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-8 w-14" />
@@ -35,7 +35,7 @@ function SupplyRisk() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3">
-                  <h3 className="font-serif text-base font-bold text-ink">{r.itemGroupName}</h3>
+                  <h3 className="text-base font-bold text-ink">{r.itemGroupName}</h3>
                   <RiskBadge level={r.level} />
                 </div>
                 <div className="mt-1 text-xs text-ink-muted">
@@ -43,12 +43,12 @@ function SupplyRisk() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-serif text-3xl font-bold lining-nums tabular-nums text-ink">{r.riskScore}</div>
+                <div className="text-3xl font-bold tabular-nums text-ink">{r.riskScore}</div>
                 <div className="text-xs text-ink-faint">/ 100</div>
               </div>
             </div>
 
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-paper">
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-sm bg-paper">
               <div className={`h-full rounded-full ${riskColorBar[r.level]}`} style={{ width: `${r.riskScore}%` }} />
             </div>
 
